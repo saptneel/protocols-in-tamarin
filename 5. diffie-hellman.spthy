@@ -1,0 +1,38 @@
+// Too quick?
+theory DiffieHellman
+begin
+
+builtins: diffie-hellman
+
+rule A_Init:
+    [ Fr(~x), Fr(~g), Fr(~p) ]
+    --[ RunningA($A, $B, ~x, ~g, ~p) ]->
+    [ Out(~g^~x), StateA($A, $B, ~x, ~g, ~p), !Pair($A, ~p, ~g) ]
+
+rule B_Recv:
+    [ In(gx), Fr(~y), !Pair($A, p, g) ]
+    --[ RunningB($B, $A, gx^~y) ]->
+    [ Out(g^~y), StateB($B, $A, gx, ~y) ]
+
+rule A_Recv:
+    [ StateA($A, $B, x, g, p), In(gy) ]
+    --[ CommitA($A, $B, gy^x) ]->
+    []
+
+lemma secracy:
+    // "All A B key #i. CommitA(A, B, key) @ i 
+    //  ==> not (Ex #j. K(key) @ j)"
+    "not (Ex A B key #i #j.
+            CommitA(A, B, key) @ i
+            & K(key) @ j)"
+
+lemma auth:
+    "All A B key #i. CommitA(A, B, key) @ i
+        ==> (Ex #j. RunningB(B, A, key) @ j)"
+
+lemma auth_injective:
+    "All A B key #i. CommitA(A, B, key) @ i
+        ==> (Ex #j. RunningB(B, A, key) @ j
+            & (All #k. CommitA(A, B, key) @ k ==> #i = #k))"
+
+end

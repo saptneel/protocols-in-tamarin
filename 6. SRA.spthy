@@ -1,0 +1,63 @@
+//Could also use Authentication
+//Fresh value like ~ka stays ~ka or should I make it ka during next state?
+theory SRA
+begin
+
+builtins: symmetric-encryption, signing
+
+// functions:
+//     senc/2,
+//     sdec/2
+
+equations:
+    // sdec(senc(m, k), k) = m,
+    sdec(senc(senc(m, k1), k2), k1) = senc(m, k2)
+
+rule Register_Key:
+    [ Fr(~k) ]
+    --[ KeyReg($X, ~k) ]->
+    [ !Ltk($X, ~k), !Pk($X, pk(~k)), Out(pk(~k)) ]
+
+rule A_Init:
+    [Fr(~m), Fr(~ka), !Ltk($A, lkeyA), !Pk($B, pkB) ]
+    -->
+    [ Out(<$A, $B, senc(~m, ~ka), sign(<$A, $B, senc(~m, ~ka)>, lkeyA)>), StateA1($A, $B, ~m, ~ka, lkeyA, pkB) ]
+
+rule B_Recv:
+    [In(<$A, $B,  m2, sig2>), Fr(~kb), !Ltk($B, lkeyB), !Pk($A, pkA) ]
+    --[Check(verify(sig2, <$A, $B,  m2>, pkA), true)]->
+    [ Out(<$B, $A, senc(m2, ~kb), sign(<$B, $A, senc(m2, ~kb)>, lkeyB)>), StateB1($A, $B, m2, ~kb, lkeyB, pkA) ]
+
+rule A_Recv:
+    [StateA1($A, $B, ~m, ~ka, lkeyA, pkB), In(<$B, $A, m3, sig3>), !Ltk($A, lkeyA)]
+    --[CommitA($A, $B, ~m), Check(verify(sig3, <$B, $A, m3>, pkB), true)]->
+    [Out(<$A, $B, sdec(m3, ~ka), sign(<$A, $B, sdec(m3, ~ka)>, lkeyA)>), StateA2($A, $B, ~m, ~ka, lkeyA, pkB) ]
+
+rule B_Commit:
+    [StateB1($A, $B, senc(~m, ~ka), ~kb, lkeyB, pkA), In(<$A, $B, senc(~m, ~kb), sig4>)]
+    --[Check(verify(sig4, <$A, $B, senc(~m, ~kb)>, pkA), true), CommitB($B, $A, ~m)]->
+    []
+
+lemma executable:
+    exists-trace
+    "Ex A B m #i #j. CommitB(B, A, m) @ i & CommitA(A, B, m) @ j"
+
+//Unverified
+lemma agreement_B:
+    "All B A m #i. CommitB(B, A, m) @ i
+     ==> (Ex #j. CommitA(A, B, m) @ j
+            & (All #k. CommitB(B, A, m) @ k ==> #i = #k))"
+
+lemma agreement_A:
+    "All A B m #i. CommitA(A, B, m) @ i
+     ==> (Ex #j. CommitB(B, A, m) @ j
+            & (All #k. CommitA(A, B, m) @ k ==> #i = #k))"
+
+lemma secracy_m:
+    "not (Ex A B m #i #j.
+            CommitA(A, B, m) @ i
+            & K(m) @ j)"
+end 
+
+
+

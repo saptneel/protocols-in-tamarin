@@ -1,0 +1,54 @@
+theory DenningSacco
+begin
+
+builtins: symmetric-encryption
+
+rule Register:
+    [ Fr(~k) ]
+    -->
+    [ !Ltk($X, ~k) ]
+
+rule A_Init:
+    [ !Ltk($A, kAS) ]
+    -->
+    [ Out(<$A, $B>), StateA1($A, $B, kAS) ]
+
+rule Server:
+    [ In(<$A, $B>), Fr(~Kab), Fr(~T) , !Ltk($A, kAS), !Ltk($B, kBS) ]
+    -->
+    [ Out(senc(< $B, ~Kab, ~T, senc(<~Kab, $A, ~T>, kBS) >, kAS)) ]
+
+rule A_Next:
+    [ StateA1($A, $B, kAS), In(senc(< $B, Kab, T, msg >, kAS))]
+    --[ RunningA($A, $B, Kab, T) ]->
+    [ Out(msg) ]
+
+rule B_Recv:
+    [ !Ltk($B, kBS), In(senc(<Kab, $A, T>, kBS)) ]
+    --[ CommitB($B, $A, Kab, T), SecretAB($A, $B, Kab) ]->
+    []
+
+rule Compromise_Node:
+    [ !Ltk($X, k) ]
+    --[ Compromised($X) ]->
+    [ Out(k) ]
+
+lemma executable:
+    exists-trace
+    "Ex A B Kab T #i. CommitB(B, A, Kab, T) @ i"
+
+lemma secrecy_Kab:
+    "not (Ex A B Kab #i #j.
+            SecretAB(A, B, Kab) @ i
+            & K(Kab) @ j
+            & not (Ex #k. Compromised(A) @ k)
+            & not (Ex #k. Compromised(B) @ k))"
+
+lemma agreement_B:
+    "All B A Kab T #i. CommitB(B, A, Kab, T) @ i
+     ==> ((Ex #j. RunningA(A, B, Kab, T) @ j
+            & (All #k. CommitB(B, A, Kab, T) @ k ==> #i = #k))
+            | (Ex #k. Compromised(A) @ k)
+            | (Ex #k. Compromised(B) @ k))"
+
+end

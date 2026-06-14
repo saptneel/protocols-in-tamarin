@@ -1,0 +1,68 @@
+theory TLS13_Mini
+begin
+
+builtins: diffie-hellman, asymmetric-encryption, hashing, signing
+
+// 1. PKI Infrastructure
+rule Register_pk:
+    [ Fr(~ltk) ] --> [ !Ltk($A, ~ltk), !Pk($A, pk(~ltk)) ]
+
+// 2. Client Hello: Generates DH ephemeral key (gx)
+rule Client_Hello:
+    [ Fr(~x), !Pk($S, pkS) ]
+  -->
+    [ Client_Sent_CH($C, $S, ~x)
+    , Out(<'ClientHello', 'gx', 'g'^~x>) 
+    ]
+
+// 3. Server Hello: Receives gx, generates gy, signs the transcript
+rule Server_Hello:
+    let 
+        shared_secret = gx^~y
+        transcript = <'ClientHello', 'gx', gx, 'ServerHello', 'gy', 'g'^~y>
+    in
+    [ !Ltk($S, ~ltkS)
+    , In(<'ClientHello', 'gx', gx>)
+    , Fr(~y) 
+    ]
+  --[ Server_Finished($S, shared_secret) ]->
+    [ Server_Sent_SH($S, gx, ~y)
+    , Out(<'ServerHello', 'gy', 'g'^~y, sign(transcript, ~ltkS)>) 
+    ]
+
+// 4. Client Finish: Verifies server signature and derives shared secret
+rule Client_Finish:
+    let 
+        shared_secret = gy^~x
+        transcript = <'ClientHello', 'gx', 'g'^~x, 'ServerHello', 'gy', gy>
+    in
+    [ Client_Sent_CH($C, $S, ~x)
+    , !Pk($S, pkS)
+    , In(<'ServerHello', 'gy', gy, sig>)
+    ]
+  --[ Client_Finished($C, shared_secret), 
+      Eq(verify(sig, transcript, pkS), true) ]->
+    [ Client_Established($C, $S, shared_secret) ]
+
+/* --- Restrictions --- */
+// Forces Tamarin to only consider valid signature verifications
+restriction Equality:
+    "All x y #i. Eq(x,y) @ i ==> x = y"
+
+/* --- Lemmas --- */
+
+// 1. Secrecy of the Derived Key (Forward Secrecy)
+lemma Perfect_Forward_Secrecy:
+  "all-traces
+   not(Ex s #i #j.
+       Client_Finished('Alice', s) @ #i 
+     & K(s) @ #j
+     & not(Ex #r. LtkReveal('Server') @ r)
+   )"
+
+// 2. Executability Check (Long horizontal diagram)
+lemma Handshake_Possible:
+  exists-trace
+  "Ex C s #i. Client_Finished(C, s) @ #i"
+
+end

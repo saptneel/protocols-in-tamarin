@@ -1,0 +1,61 @@
+theory AS_RPC
+begin
+
+builtins: symmetric-encryption
+functions: succ/1
+
+// Rules
+
+rule est_sk:
+    [Fr(~k)]
+    -->
+    [!SK($A, $B, ~k)]
+    
+// 1
+rule Init:
+    [Fr(~Na), !SK($A, $B, k)]
+    --[Start($A, ~Na)]->
+    [Out(<$A, senc(~Na, k)>), StateA1($A, $B, k, ~Na)]
+
+// 2
+rule succB:
+    [In(<$A, senc(Na, k)>), !SK($A, $B, k), Fr(~Nb)]
+    -->
+    [Out(senc(<succ(Na), ~Nb>, k)), StateB1($A, $B, k, Na, ~Nb)]
+
+// 3
+rule succA:
+    [In(senc(<succ(Na), Nb>, k)), !SK($A, $B, k), StateA1($A, $B, k, Na)]
+    -->
+    [Out(senc(succ(Nb), k)), StateA2($A, $B, k, Na, Nb)]
+
+// 4
+rule newKey:
+    [In(senc(succ(Nb), k)), !SK($A, $B, k), Fr(~k1), Fr(~Nb2), StateB1($A, $B, k, Na, Nb)]
+    --[GenK($B, ~k1)]->
+    [Out(senc(<~k1, ~Nb2>, k))]
+
+
+rule acceptKey:
+    [StateA2($A, $B, k, Na, Nb), In(senc(<k1, Nb2>, k)), !SK($A, $B, k)]
+    --[AcceptK($A, k1)]->
+    [Final($A, $B, k1)]
+
+
+rule revealKey:
+    [Final($A, $B, k1)]
+    --[Leaked(k1)]->
+    [Out(k1)]
+
+// Lemmas
+
+lemma keyFreshness:
+    "(All A k1 #i. AcceptK(A, k1) @ #i ==>
+        Ex B Na #j #k. 
+            Start(A, Na) @ #j &
+            GenK(B, k1) @ #k &
+            #j < #k & 
+            #k < #i
+    )"
+    
+end

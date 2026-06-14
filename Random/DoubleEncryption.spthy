@@ -1,0 +1,35 @@
+theory DoubleEncryption
+begin
+
+builtins: asymmetric-encryption
+
+// Rules
+rule Register_pk:
+  [Fr(~ltk)]
+  -->
+  [!Ltk($A, ~ltk), !Pk($A, pk(~ltk)), Out(pk(~ltk))]
+
+rule Init_1:
+  [Fr(~k), !Pk($B, pkB)]
+  -->
+  [Out(aenc(aenc(~k, pkB), pkB))] // I1(k, B, A)
+
+rule Init_2:
+  [In(aenc(aenc(k, pk(~ltkA)), pk(~ltkA))), !Ltk($A, ~ltkA)] // I1(k, B, A)
+  --[FinishedA(k), Secret(k)]->
+  []
+
+rule Resp_1:
+  [In(aenc(aenc(k, pk(~ltkB)), pk(~ltkB))), !Ltk($B, ~ltkB), !Pk($A, pkA)]
+  -->
+  [Out(aenc(aenc(k, pkA), pkA))]
+
+// Lemmas
+lemma traceable:
+  exists-trace
+  "Ex k #i. FinishedA(k) @ #i"
+
+lemma key_secrecy:
+  "All k #i. Secret(k) @ #i ==> not (Ex #j. K(k) @ #j)"
+
+end
