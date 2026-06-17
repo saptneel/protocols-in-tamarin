@@ -53,7 +53,7 @@ lemma agreement_A:
      ==> (Ex #j. CommitB(B, A, m) @ j
             & (All #k. CommitA(A, B, m) @ k ==> #i = #k))"
 
-lemma secracy_m:
+lemma secrecy_m:
     "not (Ex A B m #i #j.
             CommitA(A, B, m) @ i
             & K(m) @ j)"
