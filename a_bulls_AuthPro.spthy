@@ -1,9 +1,8 @@
-//Had to remove hashes of out msgs?
 // Should B also create the secretAB
 theory BullsProtocol
 begin
 
-builtins: xor, hashing, symmetric-encryption
+builtins: xor, symmetric-encryption
 
 rule Register_Key:
     [Fr(~k)]
@@ -11,75 +10,108 @@ rule Register_Key:
     [!Ltk($X, ~k)]
 
 rule A_Init:
+    let Xa = <senc(<$A, $B, ~Na>, kAS), $A, $B, ~Na>
+    in
     [Fr(~Na), !Ltk($A, kAS)]
     -->
-    [Out(<$A, $B, ~Na>), StateA1($A, $B, ~Na, kAS)]
+    [Out(<Xa>), StateA1($A, $B, ~Na, kAS)]
 
 rule B_Forward:
-    [Fr(~Nb), !Ltk($B, kBS), In(<$A, $B, Na>)]
+    let Xa = <hash1, $A, $B, Na>
+        Xb = <senc(<$B, $C, ~Nb, Xa>, kBS), $B, $C, ~Nb, Xa>
+    in
+    [Fr(~Nb), !Ltk($B, kBS), In(<Xa>)]
     -->
-    [Out(<$B, $C, ~Nb, $A, Na>), StateB1($B, $A, $C, ~Nb, kBS)]
+    [Out(<Xb>), StateB1($B, $A, $C, ~Nb, kBS)]
 
 rule C_Forward:
-    [Fr(~Nc), !Ltk($C, kCS), In(<$B, $C, Nb, $A, Na>)]
+    let Xb = <hash2, $B, $C, Nb, Xa>
+        Xc = <senc(<$C, $S, ~Nc, Xb>, kCS), $C, $S, ~Nc, Xb>
+    in
+    [Fr(~Nc), !Ltk($C, kCS), In(<Xb>)]
     -->
-    [Out(<$C, $S, ~Nc, $B, Nb, $A, Na>), StateC1($C, $B, ~Nc, kCS)]
+    [Out(<Xc>), StateC1($C, $B, $S, ~Nc, kCS)]
 
 rule Server:
-    let keyAB = <$A, $B, (~Kab ⊕ h(Na, kAS)), senc(<$A, $B, Na>, ~Kab)>
-        keyBA = <$B, $A, (~Kab ⊕ h(Nb, kBS)), senc(<$B, $A, Nb>, ~Kab)>
-        keyBC = <$B, $C, (~Kbc ⊕ h(Nb, kBS)), senc(<$B, $C, Nb>, ~Kbc)>
-        keyCB = <$C, $B, (~Kbc ⊕ h(Nc, kCS)), senc(<$C, $B, Nc>, ~Kbc)>
+    let Xa = <senc(<$A, $B, Na>, kAS), $A, $B, Na>
+        Xb = <senc(<$B, $C, Nb, Xa>, kBS), $B, $C, Nb, Xa>
+        Xc = <senc(<$C, $S, Nc, Xb>, kCS), $C, $S, Nc, Xb>
+        keyAB = <$A, $B, (~Kab ⊕ senc(Na, kAS)), senc(<$A, $B, Na>, ~Kab)>
+        keyBA = <$B, $A, (~Kab ⊕ senc(Nb, kBS)), senc(<$B, $A, Nb>, ~Kab)>
+        keyBC = <$B, $C, (~Kbc ⊕ senc(Nb, kBS)), senc(<$B, $C, Nb>, ~Kbc)>
+        keyCB = <$C, $B, (~Kbc ⊕ senc(Nc, kCS)), senc(<$C, $B, Nc>, ~Kbc)>
     in
-    [In(<$C, $S, Nc, $B, Nb, $A, Na>), !Ltk($A, kAS), !Ltk($B, kBS), !Ltk($C, kCS), Fr(~Kab), Fr(~Kbc)]
+    [In(<Xc>), !Ltk($A, kAS), !Ltk($B, kBS), !Ltk($C, kCS), Fr(~Kab), Fr(~Kbc)]
     --[ServerInit($S, $A, $B, $C, ~Kab, ~Kbc)]->
     [Out(<keyAB, keyBA, keyBC, keyCB>)]
 
 rule C_Recv:
-    // let xorCB = Kbc ⊕ h(~Nc, ~kCS)
-    //     sencCB = senc(<$C, $B, ~Nc>, Kbc)
-    // in
-    [StateC1($C, $B, ~Nc, kCS), In(<keyAB, keyBA, keyBC, <$C, $B, Kbc ⊕ h(<~Nc, kCS>), senc(<$C, $B, ~Nc>, Kbc)>>)]
-    --[CommitC($C, $B, Kbc), SecretBC($B, $C, Kbc)]->
+    let xorCB = Kbc ⊕ senc(~Nc, kCS)
+        sencCB = senc(<$C, $B, ~Nc>, Kbc)
+    in
+    [StateC1($C, $B, $S, ~Nc, kCS), In(<keyAB, keyBA, keyBC, <$C, $B, xorCB, sencCB>>)]
+    --[CommitC($C, $B, Kbc)]->
     [Out(<keyAB, keyBA, keyBC>) ]
 
 rule B_Recv:
-    // let xorBA = Kab ⊕ h(~Nb, ~kBS)
-    //     xorBC = Kbc ⊕ h(~Nb, ~kBS)
-    //     sencBA = senc(<$B, $A, ~Nb>, Kab)
-    //     sencBC = senc(<$B, $C, ~Nb>, Kbc)
-    // in
-    [StateB1($B, $A, $C, ~Nb, kBS), In(<keyAB, <$B, $A, Kab ⊕ h(<~Nb, kBS>), senc(<$B, $A, ~Nb>, Kab)>, <$B, $C, Kbc ⊕ h(<~Nb, kBS>), senc(<$B, $C, ~Nb>, Kbc)>>)]
-    --[CommitB($B, $A, Kab), CommitB($B, $C, Kbc), SecretAB($A, $B, Kab), SecretBC($B, $C, Kbc)]->
+    let xorBA = Kab ⊕ senc(~Nb, kBS)
+        xorBC = Kbc ⊕ senc(~Nb, kBS)
+        sencBA = senc(<$B, $A, ~Nb>, Kab)
+        sencBC = senc(<$B, $C, ~Nb>, Kbc)
+    in
+    [StateB1($B, $A, $C, ~Nb, kBS), In(<keyAB, <$B, $A, xorBA, sencBA>, <$B, $C, xorBC, sencBC>>)]
+    --[CommitB($B, $A, $C, Kab, Kbc), SecretBC($B, $C, Kbc)]->
     [Out(keyAB)]
 
 rule A_Recv:
-    // let xorAB = Kab ⊕ h(~Na, ~kAS) 
-    //     sencAB = senc(<$A, $B, ~Na>, Kab)
-    // in  
-    [StateA1($A, $B, ~Na, kAS), In(<$A, $B, Kab ⊕ h(<~Na, kAS>), senc(<$A, $B, ~Na>, Kab)>)]
+    let xorAB = Kab ⊕ senc(~Na, kAS) 
+        sencAB = senc(<$A, $B, ~Na>, Kab)
+    in  
+    [StateA1($A, $B, ~Na, kAS), In(<$A, $B, xorAB, sencAB>)]
     --[CommitA($A, $B, Kab), SecretAB($A, $B, Kab)]->
     []
 
 rule Compromise_Node:
-    [!Ltk($X, k) ]
+    [!Ltk($X, ~k) ]
     --[Compromised($X)]->
-    [Out(k)]
+    [Out(~k)]
 
 lemma executable:
-  exists-trace
-  "Ex S A B C Kab Kbc #i. ServerInit(S, A, B, C, Kab, Kbc) @ i"
+    exists-trace
+    "Ex S A B C Kab Kbc #i. ServerInit(S, A, B, C, Kab, Kbc) @ i"
 
 lemma secrecy_Kab:
-  "All A B Kab #i. (SecretAB(A, B, Kab) @ i)
-   ==> not ((Ex #j. K(Kab) @ j)
-   & not (Ex #k. Compromised(A) @ k)
-   & not (Ex #k. Compromised(B) @ k))"
+    all-traces
+    "All A B Kab #i. (SecretAB(A, B, Kab) @ i)
+    ==> not ((Ex #j. K(Kab) @ j)
+    & not (Ex #k. Compromised(A) @ k)
+    & not (Ex #k. Compromised(B) @ k))"
+//    "not (Ex A B Kab #i #j.
+//         SecretAB(A, B, Kab) @ i
+//         & K(Kab) @ j
+//         & not (Ex #k. Compromised(A) @ k)
+//         & not (Ex #k. Compromised(B) @ k))"
 
 lemma secrecy_Kbc:
-  "All B C Kbc #i. (SecretBC(B, C, Kbc) @ i)
-   ==> not ((Ex #j. K(Kbc) @ j)
-   & not (Ex #k. Compromised(B) @ k)
-   & not (Ex #k. Compromised(C) @ k))"
+    "All B C Kbc #i. (SecretBC(B, C, Kbc) @ i)
+    ==> not ((Ex #j. K(Kbc) @ j)
+    & not (Ex #k. Compromised(B) @ k)
+    & not (Ex #k. Compromised(C) @ k))"
+
+lemma auth_A:
+    "All A B Kab #i. CommitA(A, B, Kab) @ i
+    ==> (Ex S C Kbc #j. ServerInit(S, A, B, C, Kab, Kbc) @ j & j < i)
+            & (All #k. CommitA(A, B, Kab) @ k ==> #i = #k)"
+
+lemma auth_B:
+    "All B A C Kab Kbc #i. CommitB(B, A, C, Kab, Kbc) @ i
+    ==> (Ex S #j. ServerInit(S, A, B, C, Kab, Kbc) @ j
+                            & j < i)
+            & (All #k. CommitB(B, A, C, Kab, Kbc) @ k ==> #i = #k)"
+
+lemma auth_C:
+    "All C B Kbc #i. CommitC(C, B, Kbc) @ i
+    ==> (Ex S A Kab #j. ServerInit(S, A, B, C, Kab, Kbc) @ j & j < i)
+            & (All #k. CommitC(C, B, Kbc) @ k ==> #i = #k)   "
 
 end
