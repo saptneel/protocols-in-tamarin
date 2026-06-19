@@ -14,23 +14,23 @@ rule A_Init:
     in
     [Fr(~Na), !Ltk($A, kAS)]
     -->
-    [Out(<Xa>), StateA1($A, $B, ~Na, kAS)]
+    [Out(Xa), StateA1($A, $B, ~Na, kAS)]
 
 rule B_Forward:
     let Xa = <hash1, $A, $B, Na>
         Xb = <senc(<$B, $C, ~Nb, Xa>, kBS), $B, $C, ~Nb, Xa>
     in
-    [Fr(~Nb), !Ltk($B, kBS), In(<Xa>)]
+    [Fr(~Nb), !Ltk($B, kBS), In(Xa)]
     -->
-    [Out(<Xb>), StateB1($B, $A, $C, ~Nb, kBS)]
+    [Out(Xb), StateB1($B, $A, $C, ~Nb, kBS)]
 
 rule C_Forward:
     let Xb = <hash2, $B, $C, Nb, Xa>
         Xc = <senc(<$C, $S, ~Nc, Xb>, kCS), $C, $S, ~Nc, Xb>
     in
-    [Fr(~Nc), !Ltk($C, kCS), In(<Xb>)]
+    [Fr(~Nc), !Ltk($C, kCS), In(Xb)]
     -->
-    [Out(<Xc>), StateC1($C, $B, $S, ~Nc, kCS)]
+    [Out(Xc), StateC1($C, $B, $S, ~Nc, kCS)]
 
 rule Server:
     let Xa = <senc(<$A, $B, Na>, kAS), $A, $B, Na>
@@ -41,33 +41,40 @@ rule Server:
         keyBC = <$B, $C, (~Kbc ⊕ senc(Nb, kBS)), senc(<$B, $C, Nb>, ~Kbc)>
         keyCB = <$C, $B, (~Kbc ⊕ senc(Nc, kCS)), senc(<$C, $B, Nc>, ~Kbc)>
     in
-    [In(<Xc>), !Ltk($A, kAS), !Ltk($B, kBS), !Ltk($C, kCS), Fr(~Kab), Fr(~Kbc)]
+    [In(Xc), !Ltk($A, kAS), !Ltk($B, kBS), !Ltk($C, kCS), Fr(~Kab), Fr(~Kbc)]
     --[ServerInit($S, $A, $B, $C, ~Kab, ~Kbc)]->
     [Out(<keyAB, keyBA, keyBC, keyCB>)]
 
 rule C_Recv:
-    let xorCB = Kbc ⊕ senc(~Nc, kCS)
-        sencCB = senc(<$C, $B, ~Nc>, Kbc)
+    let Kbc = xorCB ⊕ senc(Nc, kCS)
+        //xorCB = Kbc ⊕ senc(~Nc, kCS)
+        //sencCB = senc(<$C, $B, ~Nc>, Kbc)
     in
-    [StateC1($C, $B, $S, ~Nc, kCS), In(<keyAB, keyBA, keyBC, <$C, $B, xorCB, sencCB>>)]
+    [StateC1($C, $B, $S, Nc, kCS), In(<keyAB, keyBA, keyBC, <$C, $B, xorCB, sencCB>>)]
     --[CommitC($C, $B, Kbc)]->
     [Out(<keyAB, keyBA, keyBC>) ]
 
 rule B_Recv:
-    let xorBA = Kab ⊕ senc(~Nb, kBS)
-        xorBC = Kbc ⊕ senc(~Nb, kBS)
-        sencBA = senc(<$B, $A, ~Nb>, Kab)
-        sencBC = senc(<$B, $C, ~Nb>, Kbc)
+    let Kab = xorBA ⊕ senc(Nb, kBS)
+        Kbc = xorBC ⊕ senc(Nb, kBS)
+        // xorBA = Kab ⊕ senc(~Nb, kBS)
+        // xorBC = Kbc ⊕ senc(~Nb, kBS)
+        // sencBA = senc(<$B, $A, ~Nb>, Kab)
+        // sencBC = senc(<$B, $C, ~Nb>, Kbc)
     in
-    [StateB1($B, $A, $C, ~Nb, kBS), In(<keyAB, <$B, $A, xorBA, sencBA>, <$B, $C, xorBC, sencBC>>)]
+    [StateB1($B, $A, $C, Nb, kBS),
+        In(<keyAB, 
+            <$B, $A, xorBA, sencBA>, 
+            <$B, $C, xorBC, sencBC>>)]
     --[CommitB($B, $A, $C, Kab, Kbc), SecretBC($B, $C, Kbc)]->
     [Out(keyAB)]
 
 rule A_Recv:
-    let xorAB = Kab ⊕ senc(~Na, kAS) 
-        sencAB = senc(<$A, $B, ~Na>, Kab)
+    let Kab = xorAB ⊕ senc(Na, kAS)
+        //xorAB = Kab ⊕ senc(~Na, kAS) 
+        //sencAB = senc(<$A, $B, ~Na>, Kab)
     in  
-    [StateA1($A, $B, ~Na, kAS), In(<$A, $B, xorAB, sencAB>)]
+    [StateA1($A, $B, Na, kAS), In(<$A, $B, xorAB, sencAB>)]
     --[CommitA($A, $B, Kab), SecretAB($A, $B, Kab)]->
     []
 

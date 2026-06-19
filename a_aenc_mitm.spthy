@@ -3,33 +3,48 @@ begin
 
 builtins: asymmetric-encryption
 
+restriction UniqueKeyReg:
+    "All X k1 k2 #i #j. ((KeyReg(X, k1) @ i) & (KeyReg(X, k2) @ j)) ==> #i = #j"
+
 rule Register:
     [Fr(~k)]
     --[KeyReg($X, ~k)]->
     [!Ltk($X, ~k), !Pk($X, pk(~k)), Out(pk(~k))]
 
 rule A_Init:
-    [!Ltk($A, k), !Pk($B, pkB), Fr(~m)]
-    -->
-    [Out(<$A, $B, aenc(~m, pkB)>), RunningA($A, $B, ~m)]
+    [!Ltk($A, ~k), !Pk($B, pkB), Fr(~m)]
+    --[RunningA($A, $B, ~m)]->
+    [Out(<$A, $B, aenc(~m, pkB)>), StateA($A, $B, ~m)]
 
 rule B_Resp:
-    [!Ltk($B, k), !Pk(A, pkA), In(<A, $B, aenc(m, pk(k))>) ]
-    --[CommitB(A, $B, m)]->
-    [Out(<$B, A, aenc(m, pkA)>)]
+    [!Ltk($B, ~k), !Pk($A, pkA), In(<$A, $B, aenc(m, pk(~k))>) ]
+    --[CommitB($A, $B, m)]->
+    [Out(<$B, $A, aenc(m, pkA)>)]
 
 rule A_Recv:
-    [!Ltk($A, k), !Pk($B, pkB), In(<$B, $A, aenc(m, pk(k))>), 
-        RunningA($A, $B, m)]
+    [!Ltk($A, ~k), !Pk($B, pkB), In(<$B, $A, aenc(m, pk(~k))>), 
+        StateA($A, $B, m)]
     --[CommitA($A, $B, m)]->
     []
 
 lemma executable:
     exists-trace
-    "Ex A B m #i #j. CommitA(A, B, m) @ i & CommitB(A, B, m) @ j"
+    "Ex A B m #i #j. (CommitA(A, B, m) @ i & CommitB(A, B, m) @ j
+        & not (A = B))"
 
-lemma secrecy:
+lemma auth:
+    "All A B m #i. CommitB(A, B, m) @ i
+    ==> (Ex #j. RunningA(A, B, m) @ j & j < i)
+            & (All #k. CommitB(A, B, m) @ k ==> #i = #k)"
+
+lemma secrecy:      
     // all-traces
-    "All A B m #i. (CommitA(A, B, m) @ i)
-    ==> not (Ex #j. K(m) @ j)"
+    // "All A B m #j. CommitB(A, B, m) @ j
+    //                     & not (A = B)
+    // ==> not (Ex #k. K(m) @ k)"
+    "not(
+        Ex A B m #i #j.
+            CommitB(A, B, m) @ i
+            & K(m) @ j
+    )"
 end
