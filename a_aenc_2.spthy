@@ -1,0 +1,35 @@
+theory Async2
+begin
+
+builtins: asymmetric-encryption
+
+rule Register:
+    [Fr(~k)]
+    --[KeyReg($X, ~k)]->
+    [!Ltk($X, ~k), !Pk($X, pk(~k)), Out(pk(~k))]
+
+rule A_Init:
+    [!Ltk($A, k), !Pk($B, pkB), Fr(~m)]
+    -->
+    [Out(<$B, aenc(<$A, aenc(~m, pkB)>, pk(pkB))>), RunningA($A, $B, ~m)]
+
+rule B_Resp:
+    [!Ltk($B, k), !Pk(A, pkA), In(<$B, aenc(<A, aenc(m, pk(k))>, pk(k))>) ]
+    --[CommitB(A, $B, m)]->
+    [Out(<A, aenc(<$B, aenc(m, pkA)>, pkA)>)]
+
+rule A_Recv:
+    [!Ltk($A, k), !Pk($B, pkB), In(<$A, aenc(<$B, aenc(m, pk(k))>, pk(k))>), 
+        RunningA($A, $B, m)]
+    --[CommitA($A, $B, m)]->
+    []
+
+lemma executable:
+    exists-trace
+    "Ex A B m #i #j. CommitA(A, B, m) @ i & CommitB(A, B, m) @ j"
+
+lemma secrecy:
+    all-traces
+    "All A B m #i. (CommitA(A, B, m) @ i)
+    ==> not (Ex #j. K(m) @ j)"
+end
