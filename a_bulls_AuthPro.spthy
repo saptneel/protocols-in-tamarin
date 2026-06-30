@@ -4,32 +4,36 @@ begin
 
 builtins: xor, symmetric-encryption
 
+restriction Neq:
+    "All x y #i. Neq(x, y) @ i ==> not (x = y)"
+
 rule Register_Key:
     [Fr(~k)]
     --[KeyReg($X, ~k)]->
-    [!Ltk($X, ~k)]
+    [!Ltk($X, ~k), !Pk($X)]
 
 rule A_Init:
     let Xa = <senc(<$A, $B, ~Na>, kAS), $A, $B, ~Na>
     in
     [Fr(~Na), !Ltk($A, kAS)]
-    -->
+    --[Neq($A, $B)]->
     [Out(Xa), StateA1($A, $B, ~Na, kAS)]
 
 rule B_Forward:
     let Xa = <hash1, $A, $B, Na>
         Xb = <senc(<$B, $C, ~Nb, Xa>, kBS), $B, $C, ~Nb, Xa>
     in
-    [Fr(~Nb), !Ltk($B, kBS), In(Xa)]
-    -->
+    [Fr(~Nb), !Ltk($B, kBS), !Pk($A), !Pk($C), In(Xa)]
+    --[Neq($A, $B), Neq($B, $C), Neq($A, $C)]->
     [Out(Xb), StateB1($B, $A, $C, ~Nb, kBS)]
 
 rule C_Forward:
-    let Xb = <hash2, $B, $C, Nb, Xa>
+    let Xa = <hash1, $A, $B, Na>
+        Xb = <hash2, $B, $C, Nb, Xa>
         Xc = <senc(<$C, $S, ~Nc, Xb>, kCS), $C, $S, ~Nc, Xb>
     in
-    [Fr(~Nc), !Ltk($C, kCS), In(Xb)]
-    -->
+    [Fr(~Nc), !Ltk($C, kCS), !Pk($B), In(Xb)]
+    --[Neq($A, $B), Neq($B, $C), Neq($A, $C)]->
     [Out(Xc), StateC1($C, $B, $S, ~Nc, kCS)]
 
 rule Server:
@@ -42,15 +46,18 @@ rule Server:
         keyCB = <$C, $B, (~Kbc ⊕ senc(Nc, kCS)), senc(<$C, $B, Nc>, ~Kbc)>
     in
     [In(Xc), !Ltk($A, kAS), !Ltk($B, kBS), !Ltk($C, kCS), Fr(~Kab), Fr(~Kbc)]
-    --[ServerInit($S, $A, $B, $C, ~Kab, ~Kbc)]->
+    --[ServerInit($S, $A, $B, $C, ~Kab, ~Kbc),
+        Neq($A, $B), Neq($B, $C), Neq($A, $C),
+        Neq($A, $S), Neq($B, $S), Neq($C, $S)]->
     [Out(<keyAB, keyBA, keyBC, keyCB>)]
 
 rule C_Recv:
     let Kbc = xorCB ⊕ senc(Nc, kCS)
         //xorCB = Kbc ⊕ senc(~Nc, kCS)
-        //sencCB = senc(<$C, $B, ~Nc>, Kbc)
+        sencCB = senc(<$C, $B, Nc>, Kbc)
+        keyCB = <$C, $B, xorCB, sencCB>
     in
-    [StateC1($C, $B, $S, Nc, kCS), In(<keyAB, keyBA, keyBC, <$C, $B, xorCB, sencCB>>)]
+    [StateC1($C, $B, $S, Nc, kCS), In(<keyAB, keyBA, keyBC, keyCB>)]
     --[CommitC($C, $B, Kbc)]->
     [Out(<keyAB, keyBA, keyBC>) ]
 
@@ -59,22 +66,23 @@ rule B_Recv:
         Kbc = xorBC ⊕ senc(Nb, kBS)
         // xorBA = Kab ⊕ senc(~Nb, kBS)
         // xorBC = Kbc ⊕ senc(~Nb, kBS)
-        // sencBA = senc(<$B, $A, ~Nb>, Kab)
-        // sencBC = senc(<$B, $C, ~Nb>, Kbc)
+        sencBA = senc(<$B, $A, Nb>, Kab)
+        sencBC = senc(<$B, $C, Nb>, Kbc)
+        keyBA = <$B, $A, xorBA, sencBA>
+        keyBC = <$B, $C, xorBC, sencBC>
     in
     [StateB1($B, $A, $C, Nb, kBS),
-        In(<keyAB, 
-            <$B, $A, xorBA, sencBA>, 
-            <$B, $C, xorBC, sencBC>>)]
+        In(<keyAB, keyBA, keyBC>)]
     --[CommitB($B, $A, $C, Kab, Kbc), SecretBC($B, $C, Kbc)]->
     [Out(keyAB)]
 
 rule A_Recv:
     let Kab = xorAB ⊕ senc(Na, kAS)
         //xorAB = Kab ⊕ senc(~Na, kAS) 
-        //sencAB = senc(<$A, $B, ~Na>, Kab)
+        sencAB = senc(<$A, $B, Na>, Kab)
+        keyAB = <$A, $B, xorAB, sencAB>
     in  
-    [StateA1($A, $B, Na, kAS), In(<$A, $B, xorAB, sencAB>)]
+    [StateA1($A, $B, Na, kAS), In(keyAB)]
     --[CommitA($A, $B, Kab), SecretAB($A, $B, Kab)]->
     []
 
@@ -87,6 +95,17 @@ lemma executable:
     exists-trace
     "Ex S A B C Kab Kbc #i. ServerInit(S, A, B, C, Kab, Kbc) @ i"
 
+lemma executable2:
+    exists-trace
+    "Ex S A B C Kab Kbc #i #j #k #l.
+    CommitA(A, B, Kab) @ i
+    & CommitB(B, A, C, Kab, Kbc) @ j
+    & CommitC(C, B, Kbc) @ k
+    & ServerInit(S, A, B, C, Kab, Kbc) @ l
+    & not (Ex #m. Compromised(A) @ m)
+    & not (Ex #m. Compromised(B) @ m)
+    & not (Ex #m. Compromised(C) @ m)"
+
 lemma secrecy_Kab:
     all-traces
     "All A B Kab #i. (SecretAB(A, B, Kab) @ i)
@@ -98,6 +117,7 @@ lemma secrecy_Kab:
 //         & K(Kab) @ j
 //         & not (Ex #k. Compromised(A) @ k)
 //         & not (Ex #k. Compromised(B) @ k))"
+// Check whether All better or not
 
 lemma secrecy_Kbc:
     "All B C Kbc #i. (SecretBC(B, C, Kbc) @ i)
