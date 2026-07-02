@@ -4,27 +4,32 @@ begin
 
 builtins: diffie-hellman
 
+restriction Neq:
+    "All x #i. Neq(x, x) @ i ==> F"
+
+restriction Eq:
+    "All x y #i. Eq(x, y) @ i ==> x = y"
+
+
 rule A_Init:
     [ Fr(~x), Fr(~g), Fr(~p) ]
     --[ RunningA($A, $B, ~x, ~g, ~p) ]->
-    [ Out(~g^~x), StateA($A, $B, ~x, ~g, ~p), !Pair($A, ~p, ~g) ]
+    [ Out(<$A, $B, ~g, ~p, ~g^~x>), StateA($A, $B, ~x, ~g, ~p)]
 
 rule B_Recv:
-    [ In(gx), Fr(~y), !Pair($A, p, g) ]
-    --[ RunningB($B, $A, gx^~y) ]->
-    [ Out(g^~y), StateB($B, $A, gx, ~y) ]
+    [ In(<A, $B, g, p, gx>), Fr(~y)]
+    --[ RunningB($B, A, gx^~y), Neq(gx, gx^~y)]->
+    [ Out(<$B, A, g^~y>), StateB($B, A, gx, ~y) ]
 
 rule A_Recv:
-    [ StateA($A, $B, x, g, p), In(gy) ]
-    --[ CommitA($A, $B, gy^x) ]->
+    [ StateA($A, $B, x, g, p), In(<$B, $A, gy>) ]
+    --[ CommitA($A, $B, gy^x), Neq(gy, gy^x), Neq(gy, g) ]->
     []
 
-lemma secracy:
-    // "All A B key #i. CommitA(A, B, key) @ i 
-    //  ==> not (Ex #j. K(key) @ j)"
-    "not (Ex A B key #i #j.
-            CommitA(A, B, key) @ i
-            & K(key) @ j)"
+lemma secrecy:
+    "All A B key #i #j. CommitA(A, B, key) @ i & RunningB(B, A, key) @ j
+     ==> not (Ex #k. K(key) @ k)"
+    
 
 lemma auth:
     "All A B key #i. CommitA(A, B, key) @ i
