@@ -46,18 +46,18 @@ lemma auth:
             & (All #k. CommitB(A, B, m) @ k ==> #i = #k)"
 
 lemma secrecy:      
-    // all-traces
-    // "All A B m #i #j.
-    // CommitB(A, B, m) @ i & CommitA(A, B, m) @ j
-    // ==> not (Ex #k. K(m) @ k)
-    //   | (Ex #c. Compromised(A) @ c)
-    //   | (Ex #c. Compromised(B) @ c)"
-    "not(
-        Ex A B m #i #j #k.
-            CommitB(A, B, m) @ i
-            & CommitA(A, B, m) @ j
-            & K(m) @ k
-            & not (Ex #c. Compromised(A) @ c)
-            & not (Ex #c. Compromised(B) @ c)
-    )"
+    all-traces
+    "All A B m #i #j.
+    CommitB(A, B, m) @ i & CommitA(A, B, m) @ j
+    ==> not (Ex #k. K(m) @ k)
+      | (Ex #c. Compromised(A) @ c)
+      | (Ex #c. Compromised(B) @ c)"
+    // "not(
+    //     Ex A B m #i #j #k.
+    //         CommitB(A, B, m) @ i
+    //         & CommitA(A, B, m) @ j
+    //         & K(m) @ k
+    //         & not (Ex #c. Compromised(A) @ c)
+    //         & not (Ex #c. Compromised(B) @ c)
+    // )"
 end

@@ -1,0 +1,49 @@
+theory diffieplain
+begin
+builtins: diffie-hellman
+/* protocol */
+
+rule Init_client:
+    [ Fr(~a)]
+    -->
+    [ Keys(~a, 'g'^~a),Out('g'^~a)]
+
+rule Init_server:
+    [ Fr(~b) ]
+    -->
+    [ Keys(~b, 'g'^~b),Out('g'^~b)]
+
+rule Init_Finish_server:
+    let key_other = 'g'^a
+    in
+    [ Keys(b, 'g'^b), In('g'^a ) ]
+    --[ Session_created(key_other^b) ]->
+    [ Session(key_other^b)]
+
+rule Finish_client:
+    let key_other = 'g'^b
+    in
+    [ Keys(a, 'g'^a), In( 'g'^b ) ]
+    --[ Session_created(key_other^a) ]->
+    [ Session(key_other^a) ]
+
+/* Key Reveals */
+rule key_reveal:
+    [ Keys(~secretk, 'g'^~secretk) ]
+    --[ Key_reveal(~secretk) ]->
+    [ Out(~secretk) ]
+
+rule Session_reveal:
+    [ Session(skey) ]
+    --[ Reveal_sessionKey(skey)]->
+    [ Out(skey)]
+
+lemma MITM:
+    "(All #i skey. (Session_created(skey) @ i
+                    & not ((Ex A #j. Key_reveal(A) @ j)
+                            | (Ex B #k. Reveal_sessionKey(B) @ k)
+                            )
+                    )
+    ==> not (Ex #l. K( skey ) @ l )
+    )"
+end

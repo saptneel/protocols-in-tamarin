@@ -1,0 +1,90 @@
+theory NeumannStubblebine
+begin
+
+builtins: symmetric-encryption
+
+restriction UniqueKeyReg:
+    "All X k1 k2 #i #j. ((KeyReg(X, k1) @ i) & (KeyReg(X, k2) @ j)) ==> #i = #j"
+
+restriction Equal:
+    "All x y #i. Eq(x, y) @ i ==> (x = y)"
+
+rule Register:
+    [Fr(~kxs)]
+    --[KeyReg($X, ~kxs)]->
+    [!ServKey($X, ~kxs)]
+
+rule Compromise:
+    [!ServKey($X, kxs)]
+    --[Compromised($X)]->
+    [Out(kxs)]
+
+rule A_Init:
+    [!ServKey($A, kas), Fr(~Na)]
+    -->
+    [Out(<$A, ~Na>), St_A_1($A, $B, ~Na)]
+
+rule B_Resp:
+    [!ServKey($B, kbs), In(<$B, Na>), Fr(~Nb), Fr(~Tb)]
+    -->
+    [Out(<$B, senc(<$A, Na, ~Tb>, kbs), ~Nb>), St_B_1($B, $A, ~Nb, ~Tb)]
+
+rule Serv_Resp:
+    [!ServKey($A, kas), !ServKey($B, kbs), Fr(~kab),
+        In(<$B, senc(<$A, Na, Tb>, kbs), Nb>)]
+    -->
+    [Out(<senc(<$B, Na, ~kab, Tb>, kas), senc(<$A, ~kab, Tb>, kbs), Nb>)]
+
+rule A_Exchange:
+    let tuple = sdec(sencA, kas)
+        bid = fst(tuple)
+        nonce = fst(snd(tuple))
+        kab = fst(snd(snd(tuple)))
+        Tb = snd(snd(snd(tuple)))
+    in        
+    [!ServKey(A, kas), St_A_1(A, B, Na), In(<sencA, ticket, Nb>)]
+    --[Eq(nonce, Na), Eq(bid, B), EstablishKeyA(A, B, kab, Tb)]->
+    [Out(<ticket, senc(Nb, kab)>), St_A_2(A, B, kab, Tb, ticket)]
+
+rule B_Exchange:
+    let tuple = sdec(ticket, kbs)
+        id = fst(tuple)
+        ts = snd(snd(tuple))
+        kab = fst(snd(tuple))
+        nonce = sdec(sencNb, kab)
+    in
+    [!ServKey(B, kbs), St_B_1(B, A, Nb, Tb), In(<ticket, sencNb>)]
+    --[Eq(nonce, Nb), Eq(ts, Tb), Eq(id, A), EstablishKeyB(A, B, kab, Tb)]->
+    [St_B_2(B, A, kab, Tb, ticket)]
+
+rule A_msg:
+    [!ServKey(A, kas), St_A_2(A, B, kab, Tb, ticket), Fr(~Ma)]
+    -->
+    [Out(<~Ma, ticket>), St_A_3(A, B, kab, Tb, ticket, ~Ma)]
+
+rule B_msg:
+    [!ServKey(B, kbs), In(<Ma, ticket>), Fr(~Mb),
+        St_B_2(B, A, kab, Tb, ticket)]
+    -->
+    [Out(<~Mb, senc(Ma, kab)>),
+        St_B_3(B, A, kab, Tb, ticket, Ma, ~Mb)]
+
+rule A_Confirm:
+    [!ServKey(A, kas), St_A_3(A, B, kab, Tb, ticket, Ma),
+        In(<Mb, senc(Ma, kab)>)]
+    -->
+    [Out(<senc(Mb, kab)>), St_A_4(A, B, kab, Tb, ticket, Ma, Mb)] 
+    
+lemma agreement:
+    "All A B kab Tb #i.
+    EstablishKeyB(A, B, kab, Tb) @ i
+    ==> (Ex #j. EstablishKeyA(A, B, kab, Tb) @ j & j < i)
+    "
+
+lemma kab_secret:
+  "All A B kab Tb #i.
+    EstablishKeyB(B, A, kab, Tb) @ i
+    ==> (not (Ex #k. K(kab) @ k))
+        | (Ex #r. Compromised(A) @ r)
+        | (Ex #r. Compromised(B) @ r)"
+end

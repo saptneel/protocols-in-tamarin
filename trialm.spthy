@@ -1,0 +1,67 @@
+theory PublicProtocol
+begin
+
+builtins: asymmetric-encryption
+
+/* ------------------------------------------------------------------------ */
+/* PKI Setup                                                                */
+/* ------------------------------------------------------------------------ */
+
+// Rule to generate a long-term key pair for an agent
+rule Register_PK:
+  [ Fr(~ltk) ]
+--[ OnlyOnce($A) ]->
+  [ !Ltk($A, ~ltk), !Pk($A, pk(~ltk)), Out(pk(~ltk)) ]
+
+// Restriction to ensure unique key registration per identity
+restriction Unique_Identity:
+  "All A #i #j. OnlyOnce(A) @ i & OnlyOnce(A) @ j ==> #i = #j"
+
+
+/* ------------------------------------------------------------------------ */
+/* Protocol Roles                                                           */
+/* ------------------------------------------------------------------------ */
+
+// Role Alice (A) - Step 1: Initiates the protocol
+rule Alice_1:
+  [ Fr(~msg)
+  , !Pk(B, pkB)
+  , !Ltk(A, ltkA) 
+  ]
+--[ Out_A_1(~msg) ]->
+  [ Out( <B, aenc(<A, aenc(~msg, pkB)>, pkB)> )
+  , StateA(A, B, ltkA, pkB, ~msg) 
+  ]
+
+// Role Bob (B) - Step 2: Receives message from A, processes it, and replies
+rule Bob_1:
+  [ In( <B, aenc(<A, aenc(msg, pk(ltkB))>, pk(ltkB))> )
+  , !Ltk(B, ltkB)
+  , !Pk(A, pkA)
+  ]
+--[ Bob_Commit(B, A, msg) ]->
+  [ Out( <A, aenc(<B, aenc(msg, pkA)>, pkA)> ) ]
+
+// Role Alice (A) - Step 3: Receives reply from B and commits
+rule Alice_2:
+  [ In( <A, aenc(<B, aenc(msg, pk(ltkA))>, pk(ltkA))> )
+  , StateA(A, B, ltkA, pkB, msg)
+  ]
+--[ Alice_Commit(A, B, msg) ]->
+  [ ]
+
+
+/* ------------------------------------------------------------------------ */
+/* Lemmas (Properties to verify)                                            */
+/* ------------------------------------------------------------------------ */
+
+// Executability check: Can the protocol run to completion normally?
+lemma executable:
+  exists-trace
+  "Ex A B msg #i #j. Alice_Commit(A, B, msg) @ i & Bob_Commit(B, A, msg) @ j"
+
+// Secrecy check: Does the payload 'msg' remain secret from an attacker?
+lemma msg_secrecy:
+  "All A B msg #i. Alice_Commit(A, B, msg) @ i ==> not (Ex #j. K(msg) @ j)"
+
+end

@@ -1,0 +1,65 @@
+theory WooLam
+begin
+
+builtins: symmetric-encryption
+
+restriction UniqueKeyReg:
+    "All X S k1 k2 #i #j.
+        (KeyGen(X, S, k1) @ i) & (KeyGen(X, S, k2) @ j)
+        ==> #i = #j"
+
+rule Register:
+    [Fr(~kxs) ]
+  --[KeyGen($X, ~kxs) ]->
+    [!Ltk($X, ~kxs)]
+
+rule A_Init:
+    []
+    -->
+    [Out($A), St_A_1($A, $B)]
+
+rule B_Init:
+    [In($A), Fr(~Nb)]
+    -->
+    [Out(~Nb), St_B_1($B, $A, ~Nb)]
+
+rule A_Resp:
+    [!Ltk($A, kas), St_A_1($A, $B), In(Nb) ]
+    --[RunningA($A, $B, Nb)]->
+    [Out(senc(<$A, $B, Nb>, kas)), St_A_2($A, $B, Nb)]
+
+rule B_Check:
+    [!Ltk($B, kbs), St_B_1($B, $A, Nb), In(cipherA)]
+    --[CheckingB($B, $A, Nb)]->
+    [Out(senc(<$A, $B, Nb, cipherA>, kbs)), St_B_2($B, $A, Nb) ]
+
+rule Server_Check:
+    [!Ltk($A, kas), !Ltk($B, kbs),
+      In(senc(<$A, $B, Nb, senc(<$A, $B, Nb>, kas)>, kbs))]
+    -->
+    [Out(senc(<$A, $B, Nb>, kbs))]
+
+rule B_Commit:
+    [St_B_2($B, $A, Nb), !Ltk($B, kbs),
+      In(senc(<$A, $B, Nb>, kbs))]
+    --[CommitB($A, $B, Nb)]->
+    []
+
+
+lemma executable:
+  exists-trace
+  "Ex A B Nb #i. CommitB(A, B, Nb) @ i"
+
+lemma noninjective_B:
+  "All A B Nb #i.
+    CommitB(A, B, Nb) @ i
+    ==> Ex #j. RunningA(A, B, Nb) @ j & #j < #i"
+
+lemma injective_B:
+  "All A B Nb #i.
+    CommitB(A, B, Nb) @ i
+    ==> (Ex #j. RunningA(A, B, Nb) @ j & #j < #i)
+      & (All A2 B2 #i2.
+           CommitB(A2, B2, Nb) @ i2 ==> #i2 = #i)"
+
+end

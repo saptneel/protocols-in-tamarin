@@ -1,4 +1,5 @@
 theory Async2
+    configuration: "--auto-sources"
 begin
 
 builtins: asymmetric-encryption
@@ -9,10 +10,18 @@ restriction UniqueKeyReg:
 restriction Neq:
     "All x y #i. Neq(x, y) @ i ==> not (x = y)"
 
+restriction Eq:
+    "All x y #i. Eq(x, y) @ i ==> (x = y)"
+
 rule Register:
     [Fr(~k)]
     --[KeyReg($X, ~k)]->
     [!Ltk($X, ~k), !Pk($X, pk(~k)), Out(pk(~k))]
+
+rule Compromise:
+    [!Ltk($X, ~k)]
+    --[Compromised($X)]->
+    [Out(~k)]
 
 rule A_Init:
     [!Ltk($A, k), !Pk($B, pkB), Fr(~m)]
@@ -20,37 +29,36 @@ rule A_Init:
     [Out(<$B, aenc(<$A, aenc(~m, pkB)>, pkB)>), StateA($A, $B, ~m)]
 
 rule B_Resp:
-    let m = adec(snd(adec(dencM, k)), k)
-        A = fst(adec(dencM, k))
+    let inner = adec(dencM, k)
+        encM = snd(inner)
+        m = adec(encM, k)
+        A = fst(inner)
     in
     [!Ltk($B, k), !Pk(A, pkA), In(<$B, dencM>) ]
-    --[CommitB(A, $B, m), Neq(A, $B)]->
+    --[RunningB($B, A, m), Neq(A, $B)]->
     [Out(<A, aenc(<$B, aenc(m, pkA)>, pkA)>)]
 
 rule A_Recv:
-    let m = adec(snd(adec(dencM, k)), k)
-        B = fst(adec(dencM, k))
+    let inner = adec(dencM, k)
+        encM = snd(inner)
+        msg = adec(encM, k)
+        bid = fst(inner)
     in
-    [!Ltk($A, k), !Pk(B, pkB), In(<$A, dencM>), 
-        StateA($A, B, m)]
-    --[CommitA($A, B, m), Neq($A, B)]->
+    [!Ltk($A, k), !Pk(B, pkB), In(<$A, dencM>), StateA($A, B, m)]
+    --[CommitA($A, B, m), Neq($A, B), Eq(msg, m), Eq(B, bid)]->
     []
-
-rule Compromise:
-    [!Ltk($X, k)]
-    --[Compromised($X)]->
-    [Out(k)]
 
 lemma executable:
     exists-trace
-    "Ex A B m #i #j. (CommitA(A, B, m) @ i & CommitB(A, B, m) @ j
+    "Ex A B m #i. (CommitA(A, B, m) @ i
         & not (A = B))"
 
 lemma secrecy:
-    all-traces
-    "All A B m #i #j.
-    CommitB(A, B, m) @ i & CommitA(A, B, m) @ j
+    "All A B m #i.
+    CommitA(A, B, m) @ i
     ==> not (Ex #k. K(m) @ k)
       | (Ex #c. Compromised(A) @ c)
-      | (Ex #c. Compromised(B) @ c)"
+      | (Ex #c. Compromised(B) @ c)
+    "
+
 end
