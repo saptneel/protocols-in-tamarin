@@ -1,5 +1,5 @@
 theory Async2
-    configuration: "--auto-sources"
+    // configuration: "--auto-sources"
 begin
 
 builtins: asymmetric-encryption
@@ -25,7 +25,7 @@ rule Compromise:
 
 rule A_Init:
     [!Ltk($A, k), !Pk($B, pkB), Fr(~m)]
-    --[RunningA($A, $B, ~m), Neq($A, $B)]->
+    --[RunningA($A, $B, ~m), Neq($A, $B), Encrypts(~m), Encrypts(<$A, aenc(~m, pkB)>)]->
     [Out(<$B, aenc(<$A, aenc(~m, pkB)>, pkB)>), StateA($A, $B, ~m)]
 
 rule B_Resp:
@@ -35,7 +35,7 @@ rule B_Resp:
         A = fst(inner)
     in
     [!Ltk($B, k), !Pk(A, pkA), In(<$B, dencM>) ]
-    --[RunningB($B, A, m), Neq(A, $B)]->
+    --[RunningB($B, A, m), Neq(A, $B), Decrypts(inner), Decrypts(m), Encrypts(m), Encrypts(<$B, aenc(m, pkA)>)]->
     [Out(<A, aenc(<$B, aenc(m, pkA)>, pkA)>)]
 
 rule A_Recv:
@@ -45,13 +45,23 @@ rule A_Recv:
         bid = fst(inner)
     in
     [!Ltk($A, k), !Pk(B, pkB), In(<$A, dencM>), StateA($A, B, m)]
-    --[CommitA($A, B, m), Neq($A, B), Eq(msg, m), Eq(B, bid)]->
+    --[CommitA($A, B, m), Neq($A, B), Eq(msg, m), Eq(B, bid), Decrypts(inner), Decrypts(msg)]->
     []
+
+lemma sources [sources, use_induction]:
+    "All c #i. Decrypts(c) @ #i
+        ==> (Ex #j. KU(c) @ #j & #j < #i)
+            | (Ex #j. Encrypts(c) @ #j & #j < #i)"
 
 lemma executable:
     exists-trace
     "Ex A B m #i. (CommitA(A, B, m) @ i
         & not (A = B))"
+
+lemma agreement:
+    "All A B m #i.
+        CommitA(A, B, m) @ i
+        ==> Ex #j. RunningB(B, A, m) @ j & #j < #i"
 
 lemma secrecy:
     "All A B m #i.
