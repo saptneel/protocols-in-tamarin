@@ -1,0 +1,96 @@
+theory Yahalom_Advanced
+begin
+
+builtins: symmetric-encryption
+
+restriction singlelts:
+  "All A #i #j. KeyGen(A) @ i & KeyGen(A) @ j ==> #i = #j"
+
+rule Register_Key:
+    [ Fr(~k) ]
+    --[ KeyGen($X) ]->
+    [ !Ltk($X, $S, ~k) ]
+
+rule Reveal_Ltk:
+    [ !Ltk($X, $S, ~k) ]
+    --[ Compromise($X) ]->
+    [ Out(~k) ]
+
+
+rule A_Init:
+    [ Fr(~Na) ]
+    --[ ]->
+    [ Out( <$A, ~Na> ), State_A_1($A, $B, $S, ~Na) ]
+
+
+rule B_Resp:
+    [ In( <$A, Na> ), Fr(~Nb), !Ltk($B, $S, Kbs) ]
+    --[ Running_B($B, $A, <Na, ~Nb>) ]->
+    [ Out( <$B, senc(<'1', $A, Na, ~Nb>, Kbs)> ), State_B_1($B, $S, $A, Na, ~Nb, Kbs) ]
+
+
+rule S_Keygen:
+    [ In( <$B, senc(<'1', $A, Na, Nb>, Kbs)> ), !Ltk($B, $S, Kbs), !Ltk($A, $S, Kas), Fr(~Kab) ]
+    -->
+    [ Out( < senc(<'2', $B, ~Kab, Na, Nb>, Kas), senc(<'3', $A, ~Kab>, Kbs) > ) ]
+
+
+rule A_Resp:
+    [ In( < senc(<'2', $B, Kab, Na, Nb>, Kas), enc_msg > ), State_A_1($A, $B, $S, Na), !Ltk($A, $S, Kas) ]
+    --[ Commit_A($A, $B, <Na, Nb>), Running_A($A, $B, <Kab, Na, Nb>), Secret($A, $B, Kab) ]->
+    [ Out( < enc_msg, senc(<'4', Nb>, Kab) > ) ]
+
+rule B_step_2:
+    [ In( < senc(<'3', $A, Kab>, Kbs), senc(<'4', Nb>, Kab) > ), State_B_1($B, $S, $A, Na, Nb, Kbs) ]
+    --[ Commit_B($B, $A, <Kab, Na, Nb>), Secret($B, $A, Kab) ]->
+    []
+
+
+lemma executability:
+  exists-trace
+  "Ex A B Kab Na Nb #i #j.
+     Commit_B(B, A, <Kab, Na, Nb>) @ i 
+   & Commit_A(A, B, <Na, Nb>) @ j
+   & j < i
+   & not (Ex #r. Compromise(A) @ r)
+   & not (Ex #r. Compromise(B) @ r)"
+
+lemma Secrecy:
+  "All A B Kab #i.
+     Secret(A, B, Kab) @ i 
+     ==> (not (Ex #j. K(Kab) @ j))
+       | (Ex #r. Compromise(A) @ r)
+       | (Ex #r. Compromise(B) @ r)"
+       
+
+lemma noninjectiveagreement_B:
+  "All A B t #i.
+    Commit_B(B, A, t) @ i
+    ==> (Ex #j. Running_A(A, B, t) @ j & j < i)
+      | (Ex #r. Compromise(A) @ r)
+      | (Ex #r. Compromise(B) @ r)"
+
+lemma injectiveagreement_B:
+  "All A B t #i.
+    Commit_B(B, A, t) @ i
+    ==> (Ex #j. Running_A(A, B, t) @ j & j < i
+        & not (Ex B2 A2 #i2. Commit_B(B2, A2, t) @ i2 & not (#i2 = #i)))
+      | (Ex #r. Compromise(A) @ r)
+      | (Ex #r. Compromise(B) @ r)"
+
+// lemma noninjectiveagreement_A:
+//   "All A B t #i.
+//     Commit_A(A, B, t) @ i
+//     ==> (Ex #j. Running_B(B, A, t) @ j & j < i)
+//       | (Ex #r. Compromise(A) @ r)
+//       | (Ex #r. Compromise(B) @ r)"
+
+// lemma injectiveagreement_A:
+//   "All A B t #i.
+//     Commit_A(A, B, t) @ i
+//     ==> (Ex #j. Running_B(B, A, t) @ j & j < i
+//         & not (Ex A2 B2 #i2. Commit_A(A2, B2, t) @ i2 & not (#i2 = #i)))
+//       | (Ex #r. Compromise(A) @ r)
+//       | (Ex #r. Compromise(B) @ r)"
+
+end
