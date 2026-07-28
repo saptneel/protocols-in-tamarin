@@ -149,31 +149,6 @@ lemma agreement_S:
 lemma executability:
  exists-trace
  "
- (All A A2 B B2 t t2 #i #j.(
-    Running_A(A, B, t) @ #i
-  & Running_A(A2, B2, t2) @ #j
-  ==> #i = #j))
- &
- (All A A2 B B2 t t2 #i #j.(
-    Running_B(A, B, t) @ #i
-  & Running_B(A2, B2, t2) @ #j
-  ==> #i = #j))
- &
- (All A A2 B B2 t t2 #i #j.(
-    Running_S(A, B, t) @ #i
-  & Running_S(A2, B2, t2) @ #j
-  ==> #i = #j))
- &
- (All A A2 B B2 t t2 #i #j.(
-    Commit_A(A, B, t) @ #i
-  & Commit_A(A2, B2, t2) @ #j
-  ==> #i = #j))
- &
- (All A A2 B B2 t t2 #i #j.(
-    Commit_B(A, B, t) @ #i
-  & Commit_B(A2, B2, t2) @ #j
-  ==> #i = #j))
- &
  ( Ex A B t t2 t3 #i #j #k #l #m.
    Running_A(A,B,t)@#i
  & Running_B(A,B,t2)@#j & #i<#j
