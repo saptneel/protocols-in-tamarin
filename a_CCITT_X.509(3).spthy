@@ -20,7 +20,7 @@ rule A_Init:
 
 rule B_Recv_Resp:
     let m1 = <Ta, Na, $B, Xa, cipherYa>
-        m1_sig = aenc(h(m1), ~ltkA)
+        m1_sig = aenc(h(m1), ltkA)
         m2 = <$B, ~Tb, ~Nb, $A, Na, $Xb, aenc(~Yb, pkA)>
         m2_sig = aenc(h(m2), ~ltkB)
     in
@@ -31,7 +31,7 @@ rule B_Recv_Resp:
 
 rule A_Recv_Resp:
     let m2 = <$B, Tb, Nb, $A, ~Na, Xb, cipherYb>
-        m2_sig = aenc(h(m2), ~ltkB)
+        m2_sig = aenc(h(m2), ltkB)
         m3_sig = aenc(Nb, ~ltkA)
     in
     [ StateA1($A, $B, ~Na, ~Ta, ~Ya, ~ltkA, pkB), 

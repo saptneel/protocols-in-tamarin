@@ -1,0 +1,94 @@
+theory Async2_Ultimate
+begin
+
+builtins: asymmetric-encryption
+
+// --- Restrictions ---
+
+restriction UniqueKeyReg:
+    "All X k1 k2 #i #j. ((KeyReg(X, k1) @ i) & (KeyReg(X, k2) @ j)) ==> #i = #j"
+
+restriction Neq:
+    "All x y #i. Neq(x, y) @ i ==> not (x = y)"
+
+restriction Eq:
+    "All x y #i. Eq(x, y) @ i ==> (x = y)"
+
+// --- Rules ---
+
+rule Register:
+    [ Fr(~k) ]
+    --[ KeyReg($X, ~k) ]->
+    [ !Ltk($X, ~k), !Pk($X, pk(~k)), Out(pk(~k)) ]
+
+rule Compromise:
+    [ !Ltk($X, ~k) ]
+    --[ Compromised($X) ]->
+    [ Out(~k) ]
+
+rule A_Init:
+    [ !Ltk($A, kA), !Pk($B, pkB), Fr(~m) ]
+    --[ 
+        RunningA($A, $B, ~m), 
+        Neq($A, $B),
+        // FIX: Track the ciphertext, not just ~m
+        Snd_Req(aenc(~m, pkB)) 
+    ]->
+    [ 
+        Out(<$B, aenc(<'req', $A, aenc(~m, pkB)>, pkB)>), 
+        StateA($A, $B, ~m) 
+    ]
+
+rule B_Resp:
+    [ 
+        !Ltk($B, kB), 
+        !Pk(A, pkA), 
+        In(<$B, aenc(<'req', A, aenc(m, pk(kB))>, pk(kB))>) 
+    ]
+    --[ 
+        RunningB($B, A, m), 
+        Neq(A, $B),
+        // FIX: Track the ciphertext
+        Rcv_Req(aenc(m, pk(kB))),   
+        Snd_Resp(aenc(m, pkA))      
+    ]->
+    [ 
+        Out(<A, aenc(<'resp', $B, aenc(m, pkA)>, pkA)>) 
+    ]
+
+rule A_Recv:
+    [ 
+        !Ltk($A, kA), 
+        !Pk(B, pkB), 
+        In(<$A, aenc(<'resp', B, aenc(msg, pk(kA))>, pk(kA))>), 
+        StateA($A, B, m) 
+    ]
+    --[ 
+        CommitA($A, B, m), 
+        Neq($A, B), 
+        Eq(msg, m),
+        // FIX: Track the ciphertext
+        Rcv_Resp(aenc(msg, pk(kA))) 
+    ]->
+    []
+
+// --- Security Properties & Lemmas ---
+
+
+lemma executable:
+    exists-trace
+    "Ex A B m #i. (CommitA(A, B, m) @ i & not (A = B))"
+
+lemma agreement:
+    "All A B m #i.
+        CommitA(A, B, m) @ i
+        ==> Ex #j. RunningB(B, A, m) @ j & #j < #i"
+
+lemma secrecy:
+    "All A B m #i.
+        CommitA(A, B, m) @ i
+        ==> not (Ex #k. K(m) @ k)
+          | (Ex #c. Compromised(A) @ c)
+          | (Ex #c. Compromised(B) @ c)"
+
+end

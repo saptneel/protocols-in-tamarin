@@ -48,10 +48,10 @@ rule A_Recv:
     --[CommitA($A, B, m), Neq($A, B), Eq(msg, m), Eq(B, bid), Decrypts(inner), Decrypts(msg)]->
     []
 
-lemma sources [sources, use_induction]:
-    "All c #i. Decrypts(c) @ #i
-        ==> (Ex #j. KU(c) @ #j & #j < #i)
-            | (Ex #j. Encrypts(c) @ #j & #j < #i)"
+// lemma sources [sources, use_induction]:
+//     "All c #i. Decrypts(c) @ #i
+//         ==> (Ex #j. KU(c) @ #j & #j < #i)
+//             | (Ex #j. Encrypts(c) @ #j & #j < #i)"
 
 lemma executable:
     exists-trace

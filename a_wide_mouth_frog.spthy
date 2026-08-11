@@ -14,57 +14,60 @@ rule Register:
     [!Ltk($X, ~kxs)]
 
 rule RevealLtk:
-    [!Ltk($X, kxs) ]
+    [!Ltk($X, kxs)]
     --[Reveal($X)]->
     [Out(kxs)]
 
 rule A:
-    [!Ltk($A, kas), Fr(~Ta), Fr(~Kab) ]
-    --[Created($A, $B, ~Kab)]->
+    [!Ltk($A, kas), Fr(~Ta), Fr(~Kab)]
+    --[Created($A, $B, ~Kab, ~Ta)]->
     [Out(<$A, senc(<~Ta, $B, ~Kab>, kas)>)]
 
 rule S_Relay:
 let
     tuple = sdec(cipher, kxs)
-    t = fst(tuple)
+    Ta = fst(tuple)
     Y = fst(snd(tuple))
     k = snd(snd(tuple))
 in
     [!Ltk(X, kxs), !Ltk(Y, kys),
       In(<X, cipher>), Fr(~Ts)]
-    --[Forwarded(X, Y, k)]->
+    --[Forwarded(X, Y, k, Ta, ~Ts)]->
     [Out(senc(<~Ts, X, k>, kys))]
 
 rule B:
 let
+    cipher = senc(msg, kbs)
     tuple = sdec(cipher, kbs)
-    ts = fst(tuple)
+    Ts = fst(tuple)
     A = fst(snd(tuple))
     k = snd(snd(tuple))
 in
     [!Ltk($B, kbs), In(cipher)]
-    --[Accepted($B, A, k)]->
+    --[Accepted(A, $B, k, Ts)]->
     []
 
 lemma executable:
   exists-trace
-  "Ex A B kab #i. Accepted(B, A, kab) @ i"
+  "Ex A B kab Ts #i. Accepted(A, B, kab, Ts) @ i"
 
 lemma kab_secret:
-  "All A B kab #i.
-    Created(A, B, kab) @ i
+  "All A B kab Ts #i.
+    Accepted(B, A, kab, Ts) @ i
     ==> not (Ex #k. K(kab) @ k)
         | (Ex #r. Reveal(A) @ r)
         | (Ex #r. Reveal(B) @ r)"
 
 lemma noninjectiveB:
-  "All B A kab #i.
-    Accepted(B, A, kab) @ i
-    ==> Ex #j. Created(A, B, kab) @ j & #j < #i"
+  "All B A kab Ts #i.
+    Accepted(A, B, kab, Ts) @ i
+    ==> Ex Ta #j. Created(A, B, kab, Ta) @ j
+    & #j < #i
+    & not(Ts = Ta)"
 
-lemma single_forward:
-  "All A B kab #i #j.
-    Forwarded(A, B, kab) @ i & Forwarded(A, B, kab) @ j
+lemma uniqueForward:
+  "All A B kab Ta Ts #i #j.
+    Forwarded(A, B, kab, Ta, Ts) @ i & Forwarded(A, B, kab, Ta, Ts) @ j
     ==> #i = #j"
 
 end
