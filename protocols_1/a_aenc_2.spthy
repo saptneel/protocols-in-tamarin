@@ -1,5 +1,5 @@
 theory Async2
-    configuration: "--auto-sources"
+    // configuration: "--auto-sources"
 begin
 
 builtins: asymmetric-encryption
