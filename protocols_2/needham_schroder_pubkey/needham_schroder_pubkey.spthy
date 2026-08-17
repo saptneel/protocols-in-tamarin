@@ -6,7 +6,7 @@ builtins: asymmetric-encryption, signing
 
 rule Register_pk:
     [Fr(~ltk)]
-    --[RegisterKey($A, pk(~ltk))]->
+    --[RegisterKey($A, ~ltk)]->
     [!Ltk($A, ~ltk), !Pk($A, pk(~ltk)), Out(pk(~ltk))]
 
 rule Compromise_key:
@@ -19,33 +19,22 @@ restriction Equality_check:
 
 // S
 rule Server:
-    [!Ltk($S, ltkS), In(<A, B>), !Pk(B, pkB)]
-    --[ServerAnswers($S, A, B)]->
-    [Out(sign(<pkB, B>, ltkS))]
+    [!Ltk($S, ltkS), In(<$A, $B>), !Pk($B, pkB)]
+    --[ServerAnswers($S, $A, $B)]->
+    [Out(sign(<pkB, $B>, ltkS))]
 
 
-// A
+// A - B
 rule A_server_request:
     [!Ltk($A, ltkA)]
     --[]->
-    [St_A_1($A, $B), Out(<$A, $B>)]
+    [St_A_1($A, $B, ltkA), Out(<$A, $B>)]
 
 rule A_Init:
-    [St_A_1($A, B), !Ltk($A, ltkA), !Pk($S, pkS), !Pk(B, pkB), In(cert), Fr(~Na)]
+    [St_A_1($A, B, ltkA), !Ltk($A, ltkA), !Pk($S, pkS), !Pk(B, pkB), In(cert), Fr(~Na)]
     --[Eq(verify(cert, <pkB, B>, pkS), true), RunningA($A, B, ~Na)]->
-    [St_A_2($A, B, ~Na, pkB), Out(aenc(<~Na, $A>, pkB))]
+    [St_A_2($A, B, ~Na, ltkA, pkB), Out(aenc(<~Na, $A>, pkB))]
 
-rule A_confirm:
-    let
-        Na = fst(adec(nonces, ltkA))
-        Nb = fst(snd(adec(nonces, ltkA)))
-        B = snd(snd(adec(nonces, ltkA)))
-    in  
-    [St_A_2($A, B, Na, pkB), !Ltk($A, ltkA), In(nonces)]
-    --[CommitA($A, B, Na, Nb)]->
-    [Out(aenc(Nb, pkB)), St_A_3($A, B, Na, Nb)]
-
-// B
 rule B_server_request:
     let 
         Na = fst(adec(encM, ltkB))
@@ -53,18 +42,28 @@ rule B_server_request:
     in
     [!Ltk($B, ltkB), In(encM)]
     --[]->
-    [St_B_1($B, A, Na), Out(<$B, A>) ]
+    [St_B_1($B, A, Na, ltkB), Out(<$B, A>) ]
 
 rule B_send_nonces:
-    [St_B_1($B, A, Na), !Ltk($B, ltkB), !Pk($S, pkS), !Pk(A, pkA), In(cert), Fr(~Nb)]
+    [St_B_1($B, A, Na, ltkB), !Ltk($B, ltkB), !Pk($S, pkS), !Pk(A, pkA), In(cert), Fr(~Nb)]
     --[Eq(verify(cert, <pkA, A>, pkS), true), RunningB(A, $B, Na, ~Nb)]->
-    [St_B_2($B, A, Na, ~Nb), Out(aenc(<Na, ~Nb, $B>, pkA))]
+    [St_B_2($B, A, Na, ~Nb, ltkB, pkA), Out(aenc(<Na, ~Nb, $B>, pkA))]
+
+rule A_confirm:
+    let
+        Na = fst(adec(nonces, ltkA))
+        Nb = fst(snd(adec(nonces, ltkA)))
+        B = snd(snd(adec(nonces, ltkA)))
+    in  
+    [St_A_2($A, B, Na, ltkA, pkB), !Ltk($A, ltkA), In(nonces)]
+    --[CommitA($A, B, Na, Nb)]->
+    [Out(aenc(Nb, pkB))]
 
 rule B_accept:
     let
         Nb = adec(nonce, ltkB)
     in
-    [St_B_2($B, A, Na, Nb), !Ltk($B, ltkB), In(nonce)]
+    [St_B_2($B, A, Na, Nb, ltkB, pkA), !Ltk($B, ltkB), In(nonce)]
     --[CommitB(A, $B, Na, Nb)]->
     []
 

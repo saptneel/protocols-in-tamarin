@@ -1,0 +1,2 @@
+Auto-sources resolves partial deconstruction but there are still loops.
+Need to observe and see if sources lemma can be constructed or protocol needs changes.

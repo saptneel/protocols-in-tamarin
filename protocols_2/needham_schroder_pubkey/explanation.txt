@@ -1,0 +1,4 @@
+Naive approach:
+    - letting several keys being generated for S as well as A/B 
+    - No handling of which step is reached. If two rules have identical I/O structure, things are happening out of order. Fix is to use send out msgs with labels. 
+        + Out(<'1', msg>)

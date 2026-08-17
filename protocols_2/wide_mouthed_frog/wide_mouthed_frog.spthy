@@ -1,5 +1,5 @@
-theory WideMouthedFrog
-    configuration: "--auto-sources"
+theory wide_mouthed_frog
+    // configuration: "--auto-sources"
 begin
 
 builtins: symmetric-encryption
