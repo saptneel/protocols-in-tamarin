@@ -1,0 +1,1 @@
+Adversary has the knowledge of final message. Can be used to trick B into accepting an old shared key.

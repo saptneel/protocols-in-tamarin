@@ -1,4 +1,4 @@
-theory DenningSacco
+theory denning_sacco_shared_key
 begin
 
 builtins: symmetric-encryption

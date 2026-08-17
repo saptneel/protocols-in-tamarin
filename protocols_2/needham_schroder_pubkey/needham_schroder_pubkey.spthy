@@ -1,0 +1,106 @@
+theory needham_schroder_pubkey
+    configuration: "--auto-sources"
+begin
+
+builtins: asymmetric-encryption, signing
+
+rule Register_pk:
+    [Fr(~ltk)]
+    --[RegisterKey($A, pk(~ltk))]->
+    [!Ltk($A, ~ltk), !Pk($A, pk(~ltk)), Out(pk(~ltk))]
+
+rule Compromise_key:
+    [!Ltk($A, ltk)]
+    --[RevealLtk($A)]->
+    [Out(ltk)]
+
+restriction Equality_check:
+    "All x y #i. Eq(x, y) @ i ==> x = y"
+
+// S
+rule Server:
+    [!Ltk($S, ltkS), In(<A, B>), !Pk(B, pkB)]
+    --[ServerAnswers($S, A, B)]->
+    [Out(sign(<pkB, B>, ltkS))]
+
+
+// A
+rule A_server_request:
+    [!Ltk($A, ltkA)]
+    --[]->
+    [St_A_1($A, $B), Out(<$A, $B>)]
+
+rule A_Init:
+    [St_A_1($A, B), !Ltk($A, ltkA), !Pk($S, pkS), !Pk(B, pkB), In(cert), Fr(~Na)]
+    --[Eq(verify(cert, <pkB, B>, pkS), true), RunningA($A, B, ~Na)]->
+    [St_A_2($A, B, ~Na, pkB), Out(aenc(<~Na, $A>, pkB))]
+
+rule A_confirm:
+    let
+        Na = fst(adec(nonces, ltkA))
+        Nb = fst(snd(adec(nonces, ltkA)))
+        B = snd(snd(adec(nonces, ltkA)))
+    in  
+    [St_A_2($A, B, Na, pkB), !Ltk($A, ltkA), In(nonces)]
+    --[CommitA($A, B, Na, Nb)]->
+    [Out(aenc(Nb, pkB)), St_A_3($A, B, Na, Nb)]
+
+// B
+rule B_server_request:
+    let 
+        Na = fst(adec(encM, ltkB))
+        A = snd(adec(encM, ltkB))
+    in
+    [!Ltk($B, ltkB), In(encM)]
+    --[]->
+    [St_B_1($B, A, Na), Out(<$B, A>) ]
+
+rule B_send_nonces:
+    [St_B_1($B, A, Na), !Ltk($B, ltkB), !Pk($S, pkS), !Pk(A, pkA), In(cert), Fr(~Nb)]
+    --[Eq(verify(cert, <pkA, A>, pkS), true), RunningB(A, $B, Na, ~Nb)]->
+    [St_B_2($B, A, Na, ~Nb), Out(aenc(<Na, ~Nb, $B>, pkA))]
+
+rule B_accept:
+    let
+        Nb = adec(nonce, ltkB)
+    in
+    [St_B_2($B, A, Na, Nb), !Ltk($B, ltkB), In(nonce)]
+    --[CommitB(A, $B, Na, Nb)]->
+    []
+
+
+// Lemmas
+
+lemma executable:
+    exists-trace
+    "Ex A B na nb #i #j.
+        CommitA(A, B, na, nb) @ i
+        & CommitB(A, B, na, nb) @ j
+        & not (Ex #r. RevealLtk(A) @ r)
+        & not (Ex #r. RevealLtk(B) @ r)"
+
+
+lemma nonce_secrecy_A:
+    "All A B na nb #i #j.
+        CommitA(A, B, na, nb) @ i
+        & CommitB(A, B, na, nb) @ j
+        & not (Ex #r. RevealLtk(A) @ r)
+        & not (Ex #r. RevealLtk(B) @ r)
+        ==> not ((Ex #k. K(na) @ k)
+                    | (Ex #k. K(nb) @ k))"
+
+lemma noninjective_agreement_A:
+    "All A B na nb #i.
+        CommitA(A, B, na, nb) @ i
+        & not (Ex #r. RevealLtk(A) @ r)
+        & not (Ex #r. RevealLtk(B) @ r)
+        ==> (Ex #j. RunningB(A, B, na, nb) @ j & j < i)"
+
+lemma noninjective_agreement_B:
+    "All A B na nb #i.
+        CommitB(A, B, na, nb) @ i
+        & not (Ex #r. RevealLtk(A) @ r)
+        & not (Ex #r. RevealLtk(B) @ r)
+        ==> (Ex #j. RunningA(A, B, na) @ j & j < i)"
+
+end

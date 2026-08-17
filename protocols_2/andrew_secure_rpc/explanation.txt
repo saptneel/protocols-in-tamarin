@@ -1,0 +1,1 @@
+Msg 2 and Msg 4 have identical shape. Adversary uses an older Msg 2 output to trigger the current Msg 4 reception by A. Hence, causing A to accept something not fresh as a key.

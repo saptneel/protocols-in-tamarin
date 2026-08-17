@@ -1,0 +1,1 @@
+Several mistakes in early implementation. Signing can be implemented better. To be edited!

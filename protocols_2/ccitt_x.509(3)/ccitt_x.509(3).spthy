@@ -1,0 +1,67 @@
+theory ccitt_x509v3
+begin
+
+builtins: asymmetric-encryption, hashing
+
+// Rules
+
+rule Register:
+    [ Fr(~ltk) ]
+    -->
+    [ !Ltk($X, ~ltk), !Pk($X, pk(~ltk)), Out(pk(~ltk)) ]
+
+rule A_Init:
+    let m1 = <~Ta, ~Na, $B, ~Xa, aenc(~Ya, pkB)>
+        m1_sig = aenc(h(m1), ltkA)
+    in
+    [ Fr(~Na), Fr(~Ta), Fr(~Xa), Fr(~Ya), !Ltk($A, ltkA), !Pk($B, pkB) ]
+    --[ Start($A, $B, ~Na, ~Ta, ~Xa, ~Ya)]->
+    [ Out(<$A, m1, m1_sig>), StateA1($A, $B, ~Na, ~Ta, ~Xa, ~Ya) ]
+
+rule B_Recv_Resp:
+    let m1 = <Ta, Na, $B, Xa, cipherYa>
+        m1_sig = aenc(h(m1), ltkA)
+        m2 = <$B, ~Tb, ~Nb, $A, Na, ~Xb, aenc(~Yb, pkA)>
+        m2_sig = aenc(h(m2), ~ltkB)
+    in
+    [ In(<$A, m1, m1_sig>), 
+      Fr(~Nb), Fr(~Tb), Fr(~Xb), Fr(~Yb), !Ltk($B, ~ltkB), !Pk($A, pkA) ]
+    --[ RunningB($B, $A, ~Nb, ~Tb, ~Xb, ~Yb) ]->
+    [ Out(<m2, m2_sig>), StateB1($B, $A, ~Nb, ~Tb, ~Xb, ~Yb) ]
+
+rule A_Recv_Resp:
+    let m2 = <$B, Tb, Nb, A, Na, Xb, cipherYb>
+        m2_sig = aenc(h(m2), ltkB)
+        m3_sig = aenc(Nb, ltkA)
+    in
+    [ StateA1(A, $B, Na, ~Ta, ~Xa, ~Ya), 
+      In(<m2, m2_sig>) ]
+    --[ CommitA(A, $B, Na), RunningA(A, $B, Nb) ]->
+    [ Out(<A, m3_sig>) ]
+
+rule B_Final:
+    let m3_sig = aenc(Nb, pkA)
+    in
+    [ StateB1($B, $A, Nb, Tb, Xb, Yb), 
+      In(<$A, m3_sig>) ]
+    --[ CommitB($B, $A, Nb) ]->
+    [ ]
+
+
+// Lemmas
+
+lemma executable:
+  exists-trace
+  "Ex A B Na Nb #i #j. CommitB(B, A, Nb) @ i & CommitA(A, B, Na) @ j"
+
+lemma injective_agreement_B:
+  "All B A Na Nb #i. CommitB(B, A, Nb) @ i
+   ==> (Ex #j. RunningA(A, B, Nb) @ j
+        &  (All #k. CommitB(B, A, Nb) @ k ==> #k = #i))"
+
+lemma injective_agreement_A:
+  "All A B Na Nb #i. CommitA(A, B, Na) @ i
+   ==> (Ex #j. RunningB(B, A, Nb, Tb, Xb, Yb) @ j
+        &  (All #k. CommitA(A, B, Na) @ k ==> #k = #i))"
+
+end
