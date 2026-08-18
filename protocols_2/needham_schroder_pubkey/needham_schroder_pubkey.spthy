@@ -14,8 +14,6 @@ rule Compromise_key:
     --[RevealLtk($A)]->
     [Out(ltk)]
 
-restriction Equality_check:
-    "All x y #i. Eq(x, y) @ i ==> x = y"
 
 // S
 rule Server:
@@ -67,7 +65,9 @@ rule B_accept:
     --[CommitB(A, $B, Na, Nb)]->
     []
 
-
+restriction Equality_check:
+    "All x y #i. Eq(x, y) @ i ==> x = y"
+    
 // Lemmas
 
 lemma executable:

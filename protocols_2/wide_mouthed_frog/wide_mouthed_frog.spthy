@@ -1,5 +1,5 @@
 theory wide_mouthed_frog
-    // configuration: "--auto-sources"
+    configuration: "--auto-sources"
 begin
 
 builtins: symmetric-encryption
@@ -22,29 +22,16 @@ rule RevealLtk:
 rule A:
     [!Ltk($A, kas), Fr(~Ta), Fr(~Kab)]
     --[Out_A(senc(<~Ta, $B, ~Kab>, kas), ~Kab), Created($A, $B, ~Kab, ~Ta)]->
-    [Out(<'1', $A, senc(<~Ta, $B, ~Kab>, kas)>)]
+    [Out(<$A, senc(<'1', ~Ta, $B, ~Kab>, kas)>)]
 
 rule S_Relay:
-let
-    tuple = sdec(cipher, kxs)
-    Ta = fst(tuple)
-    Y = fst(snd(tuple))
-    k = snd(snd(tuple))
-in
     [!Ltk(X, kxs), !Ltk(Y, kys),
-      In(<'1', X, cipher>), Fr(~Ts)]
-    --[In_S(cipher, k), Forwarded(X, Y, k, Ta, ~Ts)]->
-    [Out(<'2', senc(<~Ts, X, k>, kys)>)]
+      In(<X, senc(<'1', Ta, Y, k>, kxs)>), Fr(~Ts)]
+    --[In_S(senc(<'1', Ta, Y, k>, kxs), k), Forwarded(X, Y, k, Ta, ~Ts)]->
+    [Out(senc(<'2', ~Ts, X, k>, kys))]
 
 rule B:
-let
-    cipher = senc(msg, kbs)
-    tuple = sdec(cipher, kbs)
-    Ts = fst(tuple)
-    A = fst(snd(tuple))
-    k = snd(snd(tuple))
-in
-    [!Ltk($B, kbs), In(<'2', cipher>)]
+    [!Ltk($B, kbs), In(senc(<'2', Ts, A, k>, kbs))]
     --[Accepted(A, $B, k, Ts)]->
     []
 

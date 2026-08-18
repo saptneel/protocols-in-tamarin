@@ -1,4 +1,7 @@
-Both msgs have structurally same pattern. There needs to be some kind of check on the timestamp of the msgs against local clock.
-Even then, some window needs to be provided for difference of received timestamp and current time.
-As long as adversary gets back within that window, there can be several variations of this attack.
-e.g., keep extending the session life, hence the life of a key, by a cycle of forwarding. (given on SPORE)
+Both msgs have structurally same pattern.
+    // There needs to be some kind of check on the timestamp of the msgs against local clock.
+    // Even then, some window needs to be provided for difference of received timestamp and current time.
+    // As long as adversary gets back within that window, there can be several variations of this attack.
+    // e.g., keep extending the session life, hence the life of a key, by a cycle of forwarding. (given on SPORE)
+
+Solution: use tags to mitigate type flaw.

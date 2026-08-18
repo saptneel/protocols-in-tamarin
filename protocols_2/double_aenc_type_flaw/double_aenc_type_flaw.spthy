@@ -1,5 +1,5 @@
 theory Async2
-    // configuration: "--auto-sources"
+    configuration: "--auto-sources"
 begin
 
 builtins: asymmetric-encryption
@@ -25,33 +25,33 @@ rule Register:
 
 rule A_Init:
     [!Ltk($A, k), !Pk($B, pkB), Fr(~m)]
-    --[RunningA($A, $B, ~m), Neq($A, $B), Encrypts(~m), Encrypts(<$A, aenc(~m, pkB)>)]->
-    [Out(<$B, aenc(<$A, aenc(~m, pkB)>, pkB)>), StateA($A, $B, ~m)]
+    --[RunningA($A, $B, ~m), Neq($A, $B), Encrypts(<'1', ~m>), Encrypts(<$A, aenc(<'1', ~m>, pkB)>)]->
+    [Out(<$B, aenc(<$A, aenc(<'1', ~m>, pkB)>, pkB)>), StateA($A, $B, ~m)]
 
 rule B_Resp:
     let inner = adec(dencM, k)
         encM = snd(inner)
-        m = adec(encM, k)
+        tag = adec(encM, k)
         A = fst(inner)
     in
     [!Ltk($B, k), !Pk(A, pkA), In(<$B, dencM>) ]
-    --[RunningB($B, A, m), Neq(A, $B), Decrypts(inner), Decrypts(m)]->
-    [Out(<A, aenc(<$B, aenc(m, pkA)>, pkA)>)]
+    --[RunningB($B, A, snd(tag)), Eq(fst(tag), '1'), Neq(A, $B), Decrypts(inner), Decrypts(tag)]->
+    [Out(<A, aenc(<$B, aenc(<'2', snd(tag)>, pkA)>, pkA)>)]
 
 rule A_Recv:
     let inner = adec(dencM, k)
         encM = snd(inner)
-        msg = adec(encM, k)
+        tag2 = adec(encM, k)
         bid = fst(inner)
     in
     [!Ltk($A, k), !Pk(B, pkB), In(<$A, dencM>), StateA($A, B, m)]
-    --[CommitA($A, B, m), Neq($A, B), Eq(msg, m), Eq(B, bid)]->
+    --[CommitA($A, B, m), Neq($A, B), Eq(snd(tag2), m), Eq(fst(tag2), '2'), Eq(B, bid)]->
     []
 
-lemma sources [sources]:
-    "All c #i. Decrypts(c) @ #i
-        ==> (Ex #j. KU(c) @ #j & #j < #i)
-            | (Ex #j. Encrypts(c) @ #j & #j < #i)"
+// lemma sources [sources]:
+//     "All c #i. Decrypts(c) @ #i
+//         ==> (Ex #j. KU(c) @ #j & #j < #i)
+//             | (Ex #j. Encrypts(c) @ #j & #j < #i)"
 
 lemma executable:
     exists-trace
