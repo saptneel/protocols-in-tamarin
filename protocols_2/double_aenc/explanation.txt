@@ -1,2 +1,10 @@
-Sources lemma fails due to ruleB accepting an input from a ruleB output. 
-Added tags to fix; did not work. Might need to add another tag in the outer encryption?
+Added tags to the protocol rules. (To be noted: not specified)
+Protocol is getting verified even if partial deconstructions are left as is.
+To fix partial deconstruction, while the auto-sources flag works perfectly,
+self-defined typing lemma fails as it fails to accomodate for variants of B rule.
+Needs to updated.
+    
+Older musings:    
+    // Sources lemma fails due to ruleB accepting an input from a ruleB output. 
+    // Added tags to fix; did not work. Might need to add another tag in the outer encryption?
+

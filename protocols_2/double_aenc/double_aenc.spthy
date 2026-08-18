@@ -25,27 +25,27 @@ rule Register:
 
 rule A_Init:
     [!Ltk($A, k), !Pk($B, pkB), Fr(~m)]
-    --[RunningA($A, $B, ~m), Neq($A, $B), Encrypts(<'1', ~m>), Encrypts(<$A, aenc(<'1', ~m>, pkB)>)]->
-    [Out(<$B, aenc(<$A, aenc(<'1', ~m>, pkB)>, pkB)>), StateA($A, $B, ~m)]
+    --[RunningA($A, $B, ~m), Neq($A, $B), Encrypts(~m), Encrypts(<$A, aenc(~m, pkB)>)]->
+    [Out(<$B, aenc(<'init', $A, aenc(~m, pkB)>, pkB)>), StateA($A, $B, ~m)]
 
 rule B_Resp:
-    let inner = adec(dencM, k)
+    let inner = snd(adec(dencM, k))
         encM = snd(inner)
-        tag = adec(encM, k)
+        m = adec(encM, k)
         A = fst(inner)
     in
     [!Ltk($B, k), !Pk(A, pkA), In(<$B, dencM>) ]
-    --[RunningB($B, A, snd(tag)), Eq(fst(tag), '1'), Neq(A, $B), Decrypts(inner), Decrypts(tag)]->
-    [Out(<A, aenc(<$B, aenc(<'2', snd(tag)>, pkA)>, pkA)>)]
+    --[RunningB($B, A, m), Eq(fst(inner), 'init'), Neq(A, $B), Decrypts(inner), Decrypts(m)]->
+    [Out(<A, aenc(<'resp', $B, aenc(m, pkA)>, pkA)>)]
 
 rule A_Recv:
-    let inner = adec(dencM, k)
+    let inner = snd(adec(dencM, k))
         encM = snd(inner)
-        tag2 = adec(encM, k)
+        msg = adec(encM, k)
         bid = fst(inner)
     in
     [!Ltk($A, k), !Pk(B, pkB), In(<$A, dencM>), StateA($A, B, m)]
-    --[CommitA($A, B, m), Neq($A, B), Eq(snd(tag2), m), Eq(fst(tag2), '2'), Eq(B, bid)]->
+    --[CommitA($A, B, m), Neq($A, B), Eq(msg, m), Eq(fst(inner), 'resp'), Eq(B, bid)]->
     []
 
 // lemma sources [sources]:
