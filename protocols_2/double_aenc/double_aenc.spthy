@@ -1,4 +1,4 @@
-theory Async2
+theory double_aenc
     configuration: "--auto-sources"
 begin
 

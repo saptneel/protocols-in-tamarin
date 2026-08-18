@@ -1,4 +1,4 @@
-theory WooLam
+theory woo_lam_pi
     configuration: "--auto-sources"
 begin
 
