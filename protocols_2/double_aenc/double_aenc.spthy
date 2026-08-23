@@ -1,5 +1,5 @@
 theory double_aenc
-    configuration: "--auto-sources"
+    // configuration: "--auto-sources"
 begin
 
 builtins: asymmetric-encryption
@@ -25,7 +25,7 @@ rule Register:
 
 rule A_Init:
     [!Ltk($A, k), !Pk($B, pkB), Fr(~m)]
-    --[RunningA($A, $B, ~m), Neq($A, $B), Encrypts(~m), Encrypts(<$A, aenc(~m, pkB)>)]->
+    --[RunningA($A, $B, ~m), Neq($A, $B), Encrypts(aenc(~m, pkB)), Encrypts(aenc(<'init', $A, aenc(~m, pkB)>, pkB))]->
     [Out(<$B, aenc(<'init', $A, aenc(~m, pkB)>, pkB)>), StateA($A, $B, ~m)]
 
 rule B_Resp:
@@ -35,7 +35,8 @@ rule B_Resp:
         A = fst(inner)
     in
     [!Ltk($B, k), !Pk(A, pkA), In(<$B, dencM>) ]
-    --[RunningB($B, A, m), Eq(fst(inner), 'init'), Neq(A, $B), Decrypts(inner), Decrypts(m)]->
+    --[RunningB($B, A, m), Eq(fst(inner), 'init'), Neq(A, $B),
+    Decrypts(dencM, m), Decrypts(encM, m), Encrypts(aenc(m, pkA)), Encrypts(aenc(<'resp', $B, aenc(m, pkA)>, pkA))]->
     [Out(<A, aenc(<'resp', $B, aenc(m, pkA)>, pkA)>)]
 
 rule A_Recv:
@@ -48,10 +49,12 @@ rule A_Recv:
     --[CommitA($A, B, m), Neq($A, B), Eq(msg, m), Eq(fst(inner), 'resp'), Eq(B, bid)]->
     []
 
-// lemma sources [sources]:
-//     "All c #i. Decrypts(c) @ #i
-//         ==> (Ex #j. KU(c) @ #j & #j < #i)
-//             | (Ex #j. Encrypts(c) @ #j & #j < #i)"
+lemma typing [sources]:
+    "All msg m #i. Decrypts(msg, m) @ i
+        ==> ( (Ex #j. KU(m) @ j & j < i)
+            | (Ex #j. KU(msg) @ j & j < i)
+            | (Ex #j. Encrypts(msg) @ j & j < i)
+            )"
 
 lemma executable:
     exists-trace
