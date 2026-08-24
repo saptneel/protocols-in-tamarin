@@ -1,5 +1,5 @@
 theory wide_mouthed_frog
-    configuration: "--auto-sources"
+    // configuration: "--auto-sources"
 begin
 
 builtins: symmetric-encryption
@@ -21,12 +21,11 @@ rule Register:
 
 rule A:
     [!Ltk($A, kas), Fr(~Ta), Fr(~Kab)]
-    --[Out_A(senc(<~Ta, $B, ~Kab>, kas), ~Kab), Created($A, $B, ~Kab)]->
+    --[Out_A(senc(<'1', ~Ta, $B, ~Kab>, kas)), Created($A, $B, ~Kab)]->
     [Out(<$A, senc(<'1', ~Ta, $B, ~Kab>, kas)>)]
 
 rule S_Relay:
-    [!Ltk(X, kxs), !Ltk(Y, kys),
-      In(<X, senc(<'1', Ta, Y, k>, kxs)>), Fr(~Ts)]
+    [!Ltk(X, kxs), !Ltk(Y, kys), In(<X, senc(<'1', Ta, Y, k>, kxs)>), Fr(~Ts)]
     --[In_S(senc(<'1', Ta, Y, k>, kxs), k), Forwarded(X, Y, k)]->
     [Out(senc(<'2', ~Ts, X, k>, kys))]
 
@@ -44,10 +43,10 @@ lemma executable:
                     & k < j
                     "
 
-// lemma sources [sources]:
-//     "All m x #i. In_S(m, x) @ #i
-//         ==> (Ex #j. KU(x) @ #j & #j < #i)
-//             | (Ex #j. Out_A(m, x) @ #j & #j < #i)"
+lemma typing [sources]:
+    "All m x #i. In_S(m, x) @ i
+        ==> (Ex #j. KU(x) @ j & j < i)
+            | (Ex #j. Out_A(m) @ j & j < i)"
 
 lemma kab_secret:
   "All A B kab #i.
@@ -86,10 +85,5 @@ lemma injectiveS:
         & (All #k. Forwarded(A, B, kab) @ k
             ==> #j = k)
         "
-
-lemma uniqueForward:
-  "All A B kab #i #j.
-    Forwarded(A, B, kab) @ i & Forwarded(A, B, kab) @ j
-    ==> #i = #j"
 
 end

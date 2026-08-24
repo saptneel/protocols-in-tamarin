@@ -1,0 +1,8 @@
+A, B:                   principal
+pkA, pkB, ltkA, ltkB:   key
+pkA, ltkA:              key pair
+pkB, ltkB:              key pair
+m:                      nonce
+
+1. A -> B: {A, {m}pkB}pkB
+2. B -> A: {B, {m}pkA}pkA

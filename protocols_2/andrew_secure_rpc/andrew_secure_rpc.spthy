@@ -14,48 +14,74 @@ rule est_sk:
 // 1
 rule Init:
     [Fr(~Na), !SK($A, $B, k)]
-    --[Start($A, ~Na)]->
+    -->
     [Out(<$A, senc(~Na, k)>), StateA1($A, $B, k, ~Na)]
 
 // 2
 rule succB:
-    [In(<$A, senc(Na, k)>), !SK($A, $B, k), Fr(~Nb)]
+    [In(<A, senc(Na, k)>), !SK(A, $B, k), Fr(~Nb)]
     -->
-    [Out(senc(<succ(Na), ~Nb>, k)), StateB1($A, $B, k, Na, ~Nb)]
+    [Out(senc(<succ(Na), ~Nb>, k)), StateB1(A, $B, k, Na, ~Nb)]
 
 // 3
 rule succA:
     [In(senc(<succ(Na), Nb>, k)), !SK($A, $B, k), StateA1($A, $B, k, Na)]
-    -->
+    --[RunningA($A, $B, k, Na, Nb)]->
     [Out(senc(succ(Nb), k)), StateA2($A, $B, k, Na, Nb)]
 
 // 4
 rule newKey:
-    [In(senc(succ(Nb), k)), !SK($A, $B, k), Fr(~k1), Fr(~Nb2), StateB1($A, $B, k, Na, Nb)]
-    --[GenK($B, ~k1)]->
+    [In(senc(succ(Nb), k)), !SK(A, $B, k), Fr(~k1), Fr(~Nb2), StateB1(A, $B, k, Na, Nb)]
+    --[RunningB(A, $B, k, ~k1, ~Nb2), CommitB(A, $B, k, Na, Nb)]->
     [Out(senc(<~k1, ~Nb2>, k))]
 
 
 rule acceptKey:
     [StateA2($A, $B, k, Na, Nb), In(senc(<k1, Nb2>, k)), !SK($A, $B, k)]
-    --[AcceptK($A, k1)]->
-    [Final($A, $B, k1)]
-
-
-rule revealKey:
-    [Final($A, $B, k1)]
-    --[Leaked(k1)]->
-    [Out(k1)]
+    --[CommitA($A, $B, k, k1, Nb2), Establish($A, $B, k1)]->
+    []
 
 // Lemmas
 
-lemma keyFreshness:
-    "(All A k1 #i. AcceptK(A, k1) @ #i ==>
-        Ex B Na #j #k. 
-            Start(A, Na) @ #j &
-            GenK(B, k1) @ #k &
-            #j < #k & 
-            #k < #i
-    )"
+lemma executable:
+  exists-trace
+  "Ex A B k Na Nb k1 Nb2 #i #j #k. CommitA(A, B, k, k1, Nb2) @ i
+                    & RunningB(A, B, k, k1, Nb2) @ j
+                    & CommitB(A, B, k, Na, Nb) @ j
+                    & j < i
+                    & RunningA(A, B, k, Na, Nb) @ k
+                    & k < j
+                    "
+
+lemma secrecy:
+    "All A B key #i. Establish(A, B, key) @ i
+    ==> not (Ex #k. K(key) @ k)
+    "
     
+lemma noninjectiveB:
+    "All A B key Na Nb #i. CommitB(A, B, key, Na, Nb) @ i
+    ==> Ex #j. RunningA(A, B, key, Na, Nb) @ j
+        & j < i
+    " 
+
+lemma injectiveB:
+    "All A B key Na Nb #i. CommitB(A, B, key, Na, Nb) @ i
+    ==> Ex #j. RunningA(A, B, key, Na, Nb) @ j
+        & j < i
+        & (All #k. CommitB(A, B, key, Na, Nb) @ k ==> #i = k)
+    "
+
+lemma noninjectiveA:
+    "All A B key  newKey Nb2 #i. CommitA(A, B, key, newKey, Nb2) @ i
+    ==> Ex #j. RunningB(A, B, key, newKey, Nb2) @ j
+        & j < i
+    "
+
+lemma injectiveA:
+    "All A B key newKey Nb2 #i. CommitA(A, B, key, newKey, Nb2) @ i
+    ==> Ex #j. RunningB(A, B, key, newKey, Nb2) @ j
+        & j < i
+        & (All #k. CommitA(A, B, key, newKey, Nb2) @ k ==> #i = k)
+    "
+
 end
