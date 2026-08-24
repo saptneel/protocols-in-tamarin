@@ -13,43 +13,47 @@ rule Register:
     -->
     [ !Ltk($X, ~ltk), !Pk($X, pk(~ltk)), Out(pk(~ltk)) ]
 
+rule Reveal:
+    [ !Ltk($X, ~ltk) ]
+  --[ Reveal($X) ]->
+    [ Out(~ltk) ]
+
 rule A_Init:
-    let m1 = <~Ta, ~Na, $B, ~Xa, aenc(~Ya, pkB)>
-        m1_sig = sign(h(m1), ltkA)
+    let m1 = <~Ta, ~Na, $B, ~Xa, aenc(~Ya, pk(~ltkB))>
+        m1_sig = sign(h(m1), ~ltkA)
         aVars = <~Na, ~Ta, ~Xa, ~Ya>
     in
-    [ Fr(~Na), Fr(~Ta), Fr(~Xa), Fr(~Ya), !Ltk($A, ltkA), !Pk($B, pkB) ]
+    [ Fr(~Na), Fr(~Ta), Fr(~Xa), Fr(~Ya), !Ltk($A, ~ltkA), !Pk($B, pk(~ltkB)) ]
     -->
-    [ Out(<$A, m1, m1_sig>), StateA1($A, $B, aVars) ]
+    [ Out(<$A, m1, m1_sig>), StateA1($A, $B, aVars, ~ltkA, pk(~ltkB)) ]
 
 rule B_Recv_Resp:
     let m1 = <Ta, Na, $B, Xa, cipherYa>
-        m2 = <$B, ~Tb, ~Nb, A, Na, ~Xb, aenc(~Yb, pkA)>
-        m2_sig = aenc(h(m2), ltkB)
-        aVars = <Na, Ta, Xa, adec(cipherYa, ltkB)>
+        m2 = <$B, ~Tb, ~Nb, A, Na, ~Xb, aenc(~Yb, pk(~ltkA))>
+        m2_sig = sign(h(m2), ~ltkB)
+        aVars = <Na, Ta, Xa, adec(cipherYa, ~ltkB)>
         bVars = <~Nb, ~Tb, ~Xb, ~Yb>
     in
-    [ In(<A, m1, m1_sig>), Fr(~Nb), Fr(~Tb), Fr(~Xb), Fr(~Yb), !Ltk($B, ltkB), !Pk(A, pkA) ]
-    --[RunningB(A, $B, aVars, bVars), Eq(verify(m1_sig, h(m1), pkA), true), Secure(A, $B, adec(cipherYa, ltkB)) ]->
-    [ Out(<m2, m2_sig>), StateB1(A, $B, aVars, bVars) ]
+    [ In(<A, m1, m1_sig>), Fr(~Nb), Fr(~Tb), Fr(~Xb), Fr(~Yb), !Ltk($B, ~ltkB), !Pk(A, pk(~ltkA)) ]
+    --[RunningB(A, $B, aVars, bVars), Eq(verify(m1_sig, h(m1), pk(~ltkA)), true), Secure(A, $B, adec(cipherYa, ~ltkB)) ]->
+    [ Out(<m2, m2_sig>), StateB1(A, $B, aVars, bVars, ~ltkB, pk(~ltkA)) ]
 
 rule A_Recv_Resp:
-    let m2 = <B, Tb, Nb, A, Na, Xb, cipherYb>
-        // m2_sig = aenc(h(m2), ltkB)
-        m3_sig = sign(Nb, ltkA)
-        aVars = <Na, Ta, Xa, Ya>
-        bVars = <Nb, Tb, Xb, adec(cipherYb, ltkA)>
+    let m2 = <$B, Tb, Nb, $A, ~Na, Xb, cipherYb>
+        m3_sig = sign(Nb, ~ltkA)
+        aVars = <~Na, ~Ta, ~Xa, ~Ya>
+        bVars = <Nb, Tb, Xb, adec(cipherYb, ~ltkA)>
     in
-    [ StateA1(A, B, aVars), In(<m2, m2_sig>), !Ltk(A, ltkA), !Pk(B, pkB) ]
-    --[ CommitA(A, B, aVars, bVars), RunningA(A, B, aVars, bVars), Eq(verify(m2_sig, h(m2), pkB), true), Secure(A, B, adec(cipherYb, ltkA)) ]->
-    [ Out(<A, m3_sig>) ]
+    [ StateA1($A, $B, aVars, ~ltkA, pk(~ltkB)), In(<m2, m2_sig>), !Ltk($A, ~ltkA), !Pk($B, pk(~ltkB)) ]
+    --[ CommitA($A, $B, aVars, bVars), RunningA($A, $B, aVars, bVars), Eq(verify(m2_sig, h(m2), pk(~ltkB)), true), Secure($A, $B, adec(cipherYb, ~ltkA)) ]->
+    [ Out(<$A, m3_sig>) ]
 
 rule B_Final:
     let aVars = <Na, Ta, Xa, Ya>
-        bVars = <Nb, Tb, Xb, Yb>
+        bVars = <~Nb, ~Tb, ~Xb, ~Yb>
     in
-    [ StateB1(A, B, aVars, bVars), In(<A, m3_sig>), !Pk(A, pkA) ]
-    --[ CommitB(A, B, aVars, bVars), Eq(verify(m3_sig, Nb, pkA), true) ]->
+    [ StateB1(A, $B, aVars, bVars, ~ltkB, pk(~ltkA)), In(<A, m3_sig>), !Ltk($B, ~ltkB), !Pk(A, pk(~ltkA)) ]
+    --[ CommitB(A, $B, aVars, bVars), Eq(verify(m3_sig, ~Nb, pk(~ltkA)), true) ]->
     [ ]
 
 
@@ -66,16 +70,32 @@ lemma executable:
 lemma secrecy:
   "All A B Y #i. Secure(A, B, Y) @ i
    ==> not (Ex #j. K(Y) @ j)
+    | (Ex #k. Reveal(A) @ k)
+    | (Ex #l. Reveal(B) @ l)
    "
+
+lemma noninjective_agreement_B:
+"All B A aVars bVars #i. CommitB(A, B, aVars, bVars) @ i
+   ==> Ex #j. RunningA(A, B, aVars, bVars) @ j
+                & j < i
+"
 
 lemma injective_agreement_B:
   "All B A aVars bVars #i. CommitB(A, B, aVars, bVars) @ i
    ==> (Ex #j. RunningA(A, B, aVars, bVars) @ j
+                & j < i
         &  (All #k. CommitB(A, B, aVars, bVars) @ k ==> #k = #i))"
+
+lemma noninjective_agreement_A:
+"All B A aVars bVars #i. CommitA(A, B, aVars, bVars) @ i
+   ==> Ex #j. RunningB(A, B, aVars, bVars) @ j
+                & j < i
+"
 
 lemma injective_agreement_A:
   "All A B aVars bVars #i. CommitA(A, B, aVars, bVars) @ i
    ==> (Ex #j. RunningB(A, B, aVars, bVars) @ j
+                & j < i
         &  (All #k. CommitA(A, B, aVars, bVars) @ k ==> #k = #i))"
 
 end
