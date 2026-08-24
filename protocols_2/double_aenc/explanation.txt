@@ -1,10 +1,9 @@
-Added tags to the protocol rules. (To be noted: not specified)
-Protocol is getting verified even if partial deconstructions are left as is.
+Added tags to the protocol rules.
 To fix partial deconstruction, the auto-sources flag works perfectly,
 as well as self-defined typing lemma.
     
-To be done:
-    Make typing sources work without tags and hence properties to fail.
+To be tried:
+    Make typing sources work without tags and make properties to fail.
 
 Older explanation:    
     // Sources lemma fails due to ruleB accepting an input from a ruleB output. 

@@ -14,55 +14,82 @@ rule Register:
     --[KeyGen($X, ~kxs)]->
     [!Ltk($X, ~kxs)]
 
-rule RevealLtk:
-    [!Ltk($X, kxs)]
-    --[Reveal($X)]->
-    [Out(kxs)]
+// rule RevealLtk:
+//     [!Ltk($X, kxs)]
+//     --[Reveal($X)]->
+//     [Out(kxs)]
 
 rule A:
     [!Ltk($A, kas), Fr(~Ta), Fr(~Kab)]
-    --[Out_A(senc(<~Ta, $B, ~Kab>, kas), ~Kab), Created($A, $B, ~Kab, ~Ta)]->
+    --[Out_A(senc(<~Ta, $B, ~Kab>, kas), ~Kab), Created($A, $B, ~Kab)]->
     [Out(<$A, senc(<'1', ~Ta, $B, ~Kab>, kas)>)]
 
 rule S_Relay:
     [!Ltk(X, kxs), !Ltk(Y, kys),
       In(<X, senc(<'1', Ta, Y, k>, kxs)>), Fr(~Ts)]
-    --[In_S(senc(<'1', Ta, Y, k>, kxs), k), Forwarded(X, Y, k, Ta, ~Ts)]->
+    --[In_S(senc(<'1', Ta, Y, k>, kxs), k), Forwarded(X, Y, k)]->
     [Out(senc(<'2', ~Ts, X, k>, kys))]
 
 rule B:
     [!Ltk($B, kbs), In(senc(<'2', Ts, A, k>, kbs))]
-    --[Accepted(A, $B, k, Ts)]->
+    --[Accepted(A, $B, k)]->
     []
 
 lemma executable:
   exists-trace
-  "Ex A B kab Ts #i. Accepted(A, B, kab, Ts) @ i"
+  "Ex A B kab #i #j #k. Accepted(A, B, kab) @ i
+                    & Forwarded(A, B, kab) @ j
+                    & j < i
+                    & Created(A, B, kab) @ k
+                    & k < j
+                    "
 
 // lemma sources [sources]:
 //     "All m x #i. In_S(m, x) @ #i
 //         ==> (Ex #j. KU(x) @ #j & #j < #i)
 //             | (Ex #j. Out_A(m, x) @ #j & #j < #i)"
 
-// lemma kab_secret:
-//   "All A B kab Ts #i.
-//     Accepted(B, A, kab, Ts) @ i
-//     ==> not (Ex #k. K(kab) @ k)
-//         | (Ex #r. Reveal(A) @ r)
-//         | (Ex #r. Reveal(B) @ r)"
+lemma kab_secret:
+  "All A B kab #i.
+    (Accepted(B, A, kab) @ i
+    ==> not (Ex #k. K(kab) @ k))
+    "
 
 lemma noninjectiveB:
-  "All B A kab Ts #i.
-    ((Accepted(A, B, kab, Ts) @ i)
-    & not (Ex #j. Reveal(A) @ j)
-    & not (Ex #k. Reveal(B) @ k))
-    ==> Ex Ta #j. Created(A, B, kab, Ta) @ j
-    & #j < #i
-    & not(Ts = Ta)"
+  "All B A kab #i.
+    Accepted(A, B, kab) @ i
+    ==> Ex #j. Forwarded(A, B, kab) @ j
+        & j < i
+        "
+
+lemma injectiveB:
+  "All B A kab #i.
+    Accepted(A, B, kab) @ i
+    ==> Ex #j. Forwarded(A, B, kab) @ j
+        & j < i
+        & (All #k. Accepted(A, B, kab) @ k
+            ==> #j = k)
+        "
+
+lemma noninjectiveS:
+  "All A B kab #i.
+    (Forwarded(A, B, kab) @ i)
+    ==> Ex #j. Created(A, B, kab) @ j
+        & j < i
+        "
+
+lemma injectiveS:
+  "All A B kab #i.
+    (Forwarded(A, B, kab) @ i)
+    ==> Ex #j. Created(A, B, kab) @ j
+        & j < i
+        & (All #k. Forwarded(A, B, kab) @ k
+            ==> #j = k)
+        "
 
 lemma uniqueForward:
-  "All A B kab Ta Ts #i #j.
-    Forwarded(A, B, kab, Ta, Ts) @ i & Forwarded(A, B, kab, Ta, Ts) @ j
+  "All A B kab #i #j.
+    Forwarded(A, B, kab) @ i & Forwarded(A, B, kab) @ j
     ==> #i = #j"
 
 end
