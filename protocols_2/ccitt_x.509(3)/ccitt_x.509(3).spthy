@@ -1,7 +1,10 @@
 theory ccitt_x509v3
 begin
 
-builtins: asymmetric-encryption, hashing
+builtins: asymmetric-encryption, hashing, signing
+// verify(sign(m,sk),m,pk(sk)) = true
+restriction Eq:
+    "All x y #i. Eq(x, y) @ i ==> (x = y)"
 
 // Rules
 
@@ -12,39 +15,41 @@ rule Register:
 
 rule A_Init:
     let m1 = <~Ta, ~Na, $B, ~Xa, aenc(~Ya, pkB)>
-        m1_sig = aenc(h(m1), ltkA)
+        m1_sig = sign(h(m1), ltkA)
+        aVars = <~Na, ~Ta, ~Xa, ~Ya>
     in
     [ Fr(~Na), Fr(~Ta), Fr(~Xa), Fr(~Ya), !Ltk($A, ltkA), !Pk($B, pkB) ]
-    --[ Start($A, $B, ~Na, ~Ta, ~Xa, ~Ya)]->
-    [ Out(<$A, m1, m1_sig>), StateA1($A, $B, ~Na, ~Ta, ~Xa, ~Ya) ]
+    -->
+    [ Out(<$A, m1, m1_sig>), StateA1($A, $B, aVars) ]
 
 rule B_Recv_Resp:
     let m1 = <Ta, Na, $B, Xa, cipherYa>
-        m1_sig = aenc(h(m1), ltkA)
-        m2 = <$B, ~Tb, ~Nb, $A, Na, ~Xb, aenc(~Yb, pkA)>
-        m2_sig = aenc(h(m2), ~ltkB)
+        m2 = <$B, ~Tb, ~Nb, A, Na, ~Xb, aenc(~Yb, pkA)>
+        m2_sig = aenc(h(m2), ltkB)
+        aVars = <Na, Ta, Xa, adec(cipherYa, ltkB)>
+        bVars = <~Nb, ~Tb, ~Xb, ~Yb>
     in
-    [ In(<$A, m1, m1_sig>), 
-      Fr(~Nb), Fr(~Tb), Fr(~Xb), Fr(~Yb), !Ltk($B, ~ltkB), !Pk($A, pkA) ]
-    --[ RunningB($B, $A, ~Nb, ~Tb, ~Xb, ~Yb) ]->
-    [ Out(<m2, m2_sig>), StateB1($B, $A, ~Nb, ~Tb, ~Xb, ~Yb) ]
+    [ In(<A, m1, m1_sig>), Fr(~Nb), Fr(~Tb), Fr(~Xb), Fr(~Yb), !Ltk($B, ltkB), !Pk(A, pkA) ]
+    --[RunningB(A, $B, aVars, bVars), Eq(verify(m1_sig, h(m1), pkA), true), Secure(A, $B, adec(cipherYa, ltkB)) ]->
+    [ Out(<m2, m2_sig>), StateB1(A, $B, aVars, bVars) ]
 
 rule A_Recv_Resp:
-    let m2 = <$B, Tb, Nb, A, Na, Xb, cipherYb>
-        m2_sig = aenc(h(m2), ltkB)
-        m3_sig = aenc(Nb, ltkA)
+    let m2 = <B, Tb, Nb, A, Na, Xb, cipherYb>
+        // m2_sig = aenc(h(m2), ltkB)
+        m3_sig = sign(Nb, ltkA)
+        aVars = <Na, Ta, Xa, Ya>
+        bVars = <Nb, Tb, Xb, adec(cipherYb, ltkA)>
     in
-    [ StateA1(A, $B, Na, ~Ta, ~Xa, ~Ya), 
-      In(<m2, m2_sig>) ]
-    --[ CommitA(A, $B, Na), RunningA(A, $B, Nb) ]->
+    [ StateA1(A, B, aVars), In(<m2, m2_sig>), !Ltk(A, ltkA), !Pk(B, pkB) ]
+    --[ CommitA(A, B, aVars, bVars), RunningA(A, B, aVars, bVars), Eq(verify(m2_sig, h(m2), pkB), true), Secure(A, B, adec(cipherYb, ltkA)) ]->
     [ Out(<A, m3_sig>) ]
 
 rule B_Final:
-    let m3_sig = aenc(Nb, pkA)
+    let aVars = <Na, Ta, Xa, Ya>
+        bVars = <Nb, Tb, Xb, Yb>
     in
-    [ StateB1($B, $A, Nb, Tb, Xb, Yb), 
-      In(<$A, m3_sig>) ]
-    --[ CommitB($B, $A, Nb) ]->
+    [ StateB1(A, B, aVars, bVars), In(<A, m3_sig>), !Pk(A, pkA) ]
+    --[ CommitB(A, B, aVars, bVars), Eq(verify(m3_sig, Nb, pkA), true) ]->
     [ ]
 
 
@@ -52,16 +57,25 @@ rule B_Final:
 
 lemma executable:
   exists-trace
-  "Ex A B Na Nb #i #j. CommitB(B, A, Nb) @ i & CommitA(A, B, Na) @ j"
+  "Ex A B aVars bVars #i #j.
+    CommitB(A, B, aVars, bVars) @ i
+    & CommitA(A, B, aVars, bVars) @ j
+    & j < i
+    "
+
+lemma secrecy:
+  "All A B Y #i. Secure(A, B, Y) @ i
+   ==> not (Ex #j. K(Y) @ j)
+   "
 
 lemma injective_agreement_B:
-  "All B A Na Nb #i. CommitB(B, A, Nb) @ i
-   ==> (Ex #j. RunningA(A, B, Nb) @ j
-        &  (All #k. CommitB(B, A, Nb) @ k ==> #k = #i))"
+  "All B A aVars bVars #i. CommitB(A, B, aVars, bVars) @ i
+   ==> (Ex #j. RunningA(A, B, aVars, bVars) @ j
+        &  (All #k. CommitB(A, B, aVars, bVars) @ k ==> #k = #i))"
 
 lemma injective_agreement_A:
-  "All A B Na Nb #i. CommitA(A, B, Na) @ i
-   ==> (Ex #j. RunningB(B, A, Nb, Tb, Xb, Yb) @ j
-        &  (All #k. CommitA(A, B, Na) @ k ==> #k = #i))"
+  "All A B aVars bVars #i. CommitA(A, B, aVars, bVars) @ i
+   ==> (Ex #j. RunningB(A, B, aVars, bVars) @ j
+        &  (All #k. CommitA(A, B, aVars, bVars) @ k ==> #k = #i))"
 
 end
