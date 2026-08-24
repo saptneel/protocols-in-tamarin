@@ -1,5 +1,5 @@
 theory double_aenc
-    configuration: "--auto-sources"
+    // configuration: "--auto-sources"
 begin
 
 builtins: asymmetric-encryption
@@ -24,37 +24,44 @@ rule Register:
 //     [Out(~k)]
 
 rule A_Init:
+    let inM = aenc(<'msg', ~m>, pkB)
+        outM = aenc(<'init', $A, inM>, pkB)
+    in
     [!Ltk($A, k), !Pk($B, pkB), Fr(~m)]
-    --[RunningA($A, $B, ~m), Neq($A, $B), Encrypts(aenc(~m, pkB)), Encrypts(aenc(<'init', $A, aenc(~m, pkB)>, pkB))]->
-    [Out(<$B, aenc(<'init', $A, aenc(~m, pkB)>, pkB)>), StateA($A, $B, ~m)]
+    --[RunningA($A, $B, ~m), Neq($A, $B), Encrypts(inM), Encrypts(outM)]->
+    [Out(<$B, outM>), StateA($A, $B, ~m)]
 
 rule B_Resp:
-    let inner = snd(adec(dencM, k))
-        encM = snd(inner)
-        m = adec(encM, k)
-        A = fst(inner)
+    let inner = adec(dencM, k)
+        tag = fst(inner)
+        A = fst(snd(inner))
+        encM = snd(snd(inner))
+        msg = adec(encM, k)
+        m = snd(msg)
+        inM = aenc(<'msg', m>, pkA)
+        outM = aenc(<'resp', $B, inM>, pkA)
     in
     [!Ltk($B, k), !Pk(A, pkA), In(<$B, dencM>) ]
-    --[RunningB($B, A, m), Eq(fst(adec(dencM, k)), 'init'), Neq(A, $B),
-    Encrypts(aenc(m, pkA)), Encrypts(aenc(<'resp', $B, aenc(m, pkA)>, pkA)), Decrypts(encM, m)]->
-    [Out(<A, aenc(<'resp', $B, aenc(m, pkA)>, pkA)>)]
+    --[RunningB($B, A, m), Neq(A, $B), Eq(tag, 'init'), Eq(fst(msg), 'msg'), Decrypts(encM, m), Decrypt(dencM, inner)]->
+    [Out(<A, outM>)]
 
 rule A_Recv:
-    let inner = snd(adec(dencM, k))
-        encM = snd(inner)
+    let inner = adec(dencM, k)
+        tag = fst(inner)
+        B = fst(snd(inner))
+        encM = snd(snd(inner))
         msg = adec(encM, k)
-        bid = fst(inner)
+        m = snd(msg)
     in
     [!Ltk($A, k), !Pk(B, pkB), In(<$A, dencM>), StateA($A, B, m)]
-    --[CommitA($A, B, m), Neq($A, B), Eq(msg, m), Eq(fst(adec(dencM, k)), 'resp'), Eq(B, bid)]->
+    --[CommitA($A, B, m), Neq($A, B), Eq(tag, 'resp'), Eq(fst(msg), 'msg')]->
     []
 
-// lemma typing [sources]:
-//     "All msg m #i. Decrypts(msg, m) @ i
-//         ==> ( (Ex #j. KU(m) @ j & j < i)
-//             // | (Ex #j. KU(msg) @ j & j < i)
-//             | (Ex #j. Encrypts(msg) @ j & j < i)
-//             )"
+lemma typing [sources]:
+    "All msg v #i. Decrypts(msg, v) @ i
+        ==> ( (Ex #j. KU(v) @ j & j < i)
+            | (Ex #j. Encrypts(msg) @ j & j < i)
+            )"
 
 lemma executable:
     exists-trace
@@ -65,6 +72,12 @@ lemma agreement:
     "All A B m #i.
         CommitA(A, B, m) @ i
         ==> Ex #j. RunningB(B, A, m) @ j & #j < #i"
+
+lemma injectiveAgreement:
+    "All A B m #i.
+        CommitA(A, B, m) @ i
+        ==> Ex #j. RunningB(B, A, m) @ j & #j < #i
+            & All #k. (CommitA(A, B, m) @ #k  ==> #k = #i)"
 
 lemma secrecy:
     "All A B m #i.
